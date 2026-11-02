@@ -1,0 +1,499 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#56765b">
+
+    <title>Love & Matchaa Café | Order Desk</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <section id="loginGate" class="login-gate"><div class="login-card"><h1>Love &amp; Matchaa Café ✿</h1><p>Private Order Desk · Authorized users only</p><form id="loginForm"><label>Email<input id="loginEmail" type="email" required autocomplete="username"></label><label>Password<input id="loginPassword" type="password" required autocomplete="current-password"></label><button class="cta" type="submit">Sign in →</button></form><p id="loginError" role="alert"></p><p class="tiny">Accounts are created by the café owner.</p></div></section><div class="shell" id="appShell" hidden>
+
+        <!-- HEADER -->
+        <header class="hero">
+            <div class="brandmark" aria-label="Love and Matchaa Café logo">
+                <img
+                    src="assets/images/logo.png"
+                    alt=""
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='grid'"
+                >
+                <span class="fallback-logo">L<span>&</span>M</span>
+            </div>
+
+            <div class="brand">
+                <h1>Love &amp; Matchaa Café</h1>
+                <p>ORDER DESK</p>
+            </div>
+
+            <div class="datetime">
+                <strong id="clock">--:--</strong>
+                <span id="today">—</span>
+            </div>
+        </header>
+
+        <div class="session-bar"><span id="sessionIdentity"></span><button class="outline" id="signOut">Sign out</button></div><div id="viewManage" class="mode-bar"><button class="outline" data-mode="view">👁 View</button><button class="outline" data-mode="manage">✎ Manage</button></div><!-- NAVIGATION -->
+        <nav class="tabs" aria-label="Main navigation">
+            <button data-page="pos" class="active">✦ New Order</button>
+            <button data-page="orders">▤ Order History</button>
+            <button data-page="reports">◷ Sales Summary</button>
+            <button data-page="settings">⚙ Menu & Prices</button>
+        </nav>
+
+        <!-- MAIN CONTENT -->
+        <main>
+
+            <!-- NEW ORDER PAGE -->
+            <section id="page-pos" class="page active">
+                <div class="workspace">
+
+                    <!-- DRINK CATALOG -->
+                    <div class="catalog card">
+                        <div class="heading">
+                            <div>
+                                <h2>What are we making today?</h2>
+                                <p>Choose a drink.</p>
+                            </div>
+
+                            <span class="count">11 drinks</span>
+                        </div>
+
+                        <div class="category" id="categories">
+                            <button class="selected" data-cat="all">
+                                All drinks
+                            </button>
+
+                            <button data-cat="matcha">Matcha</button>
+                            <button data-cat="coffee">Coffee</button>
+                        </div>
+
+                        <div id="grid" class="grid"></div>
+                    </div>
+
+                    <!-- CHECKOUT -->
+                    <aside class="checkout card">
+                        <div class="heading">
+                            <div>
+                                <h2>Order Details:</h2>
+                            </div>
+
+                            <button id="resetCart" class="textbtn">
+                                Clear Current Cart
+                            </button>
+                        </div>
+
+                        <label class="label">
+                            Customer name
+                            <span>(optional)</span>
+                            <input
+                                id="customer"
+                                placeholder=""
+                                maxlength="80"
+                            >
+                        </label>
+
+                        <span class="label caption">ORDER TYPE</span>
+
+                        <div class="segmented">
+                            <button class="selected" data-type="Dine in">
+                                Dine in
+                            </button>
+
+                            <button data-type="Take out">
+                                Take out
+                            </button>
+                        </div>
+
+                        <label id="tableBox" class="label">
+                            Table number
+                            <span>(optional)</span>
+                            <input
+                                id="table"
+                                placeholder=""
+                                maxlength="30"
+                            >
+                        </label>
+
+                        <div class="cartlist" id="cart">
+                            <div class="empty">
+                                <strong>No drinks added yet.</strong>
+                            </div>
+                        </div>
+
+                        <div class="bill">
+                            <div>
+                                <span>Items</span>
+                                <b id="itemCount">0</b>
+                            </div>
+
+                            <div class="total">
+                                <span>Total</span>
+                                <strong id="total">₱0.00</strong>
+                            </div>
+                        </div>
+
+                        <label class="label">
+                            Payment method
+                            <select id="payment">
+                                <option>Cash</option>
+                                <option>GCash</option>
+                                <option>Other</option>
+                            </select>
+                        </label>
+
+                        <button class="cta" id="saveOrder">
+                            Place order <span>→</span>
+                        </button>
+                    </aside>
+
+                </div>
+            </section>
+
+            <!-- ORDER HISTORY PAGE -->
+            <section id="page-orders" class="page">
+                <div class="card section-card">
+
+                    <div class="heading">
+                        <div>
+                            <h2>Order history</h2>
+                            <p>
+                                Track orders, review details, and record voids.
+                            </p>
+                        </div>
+
+                        <button class="outline" id="exportOrders">
+                            ↓ Export orders
+                        </button>
+                    </div>
+
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order</th>
+                                    <th>Placed at</th>
+                                    <th>Customer / Type</th>
+                                    <th>Items</th>
+                                    <th>Total</th>
+                                    <th>Status / Actions</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="ordersBody"></tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SALES SUMMARY PAGE -->
+            <section id="page-reports" class="page">
+                <div class="card section-card">
+
+                    <div class="heading">
+                        <div>
+                            <span class="eyebrow">
+                                A LITTLE LOOK AT THE NUMBERS
+                            </span>
+
+                            <h2>Sales summary</h2>
+
+                            <p>
+                                Recorded sales, excluding voided transactions.
+                            </p>
+                        </div>
+
+                        <button class="outline" id="exportSales">
+                            ↓ Export sales
+                        </button>
+                    </div>
+
+                    <!-- REPORT CONTROLS -->
+                    <div class="report-controls">
+                        <label class="label">
+                            Sales history by date
+                            <input type="date" id="reportDate">
+                        </label>
+
+                        <button class="outline" id="endOfDay">
+                            ↓ End-of-Day Report
+                        </button>
+                    </div>
+
+                    <!-- SALES STATISTICS -->
+                    <div class="stats">
+                        <div>
+                            <span>Selected day's sales</span>
+                            <strong id="todayRevenue">₱0.00</strong>
+                        </div>
+
+                        <div>
+                            <span>Selected day's orders</span>
+                            <strong id="todayCount">0</strong>
+                        </div>
+
+                        <div>
+                            <span>All-time sales</span>
+                            <strong id="allRevenue">₱0.00</strong>
+                        </div>
+
+                        <div>
+                            <span>Voided orders</span>
+                            <strong id="voidCount">0</strong>
+                        </div>
+                    </div>
+
+                    <!-- DRINK BREAKDOWN -->
+                    <h3 class="subheading">
+                        Selected day's drink breakdown
+                    </h3>
+
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Drink</th>
+                                    <th>Quantity</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="breakdown"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- DAILY TRANSACTIONS -->
+                    <h3 class="subheading">
+                        Transactions for selected date
+                    </h3>
+
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="dateOrders"></tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- MENU AND PRICES PAGE -->
+            <section id="page-settings" class="page">
+                <div class="card section-card">
+
+                    <div class="heading">
+                        <div>
+                            <span class="eyebrow">
+                                KEEP YOUR MENU UP TO DATE
+                            </span>
+
+                            <h2>Menu & prices</h2>
+
+                            <p>Update prices and add-ons anytime.</p>
+                        </div>
+
+                        <button class="cta compact" id="saveSettings">
+                            Save changes
+                        </button>
+                    </div>
+
+                    <!-- DRINK PRICES -->
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Drink</th>
+                                    <th>Small (₱)</th>
+                                    <th>Big (₱)</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="priceBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- ADD-ON PRICES -->
+                    <h3 class="subheading">Add-on prices</h3>
+
+                    <div
+                        class="addon-settings"
+                        id="addonSettings"
+                    ></div>
+
+                </div>
+            </section>
+
+        </main>
+
+        <section id="migrationPanel" class="card section-card" hidden><h2>Import previous local orders</h2><p>Owner only. Run on the ORIGINAL browser/device that contains the V4 order history. Import only once; matching order IDs will be skipped.</p><button id="importLocal" class="outline">Import local V4 orders</button><p id="importMessage" role="status"></p></section><section id="staffPanel" class="card section-card" hidden><h2>Staff accounts · Owner only</h2><p>Only the owner can create and disable accounts.</p><form id="staffForm" class="staff-form"><input id="staffEmail" type="email" placeholder="Staff email" required><input id="staffPassword" type="password" placeholder="Temporary password (6+ characters)" minlength="6" required><select id="staffRole"><option value="viewer">Viewer</option><option value="staff">Staff</option><option value="owner">Owner</option></select><button class="outline" type="submit">Create account</button></form><p id="staffMessage" role="status"></p><div id="staffList"></div></section><!-- FOOTER -->
+        <footer>
+            LOVE &amp; MATCHAA CAFÉ
+            <span>✿</span>
+            ORDER DESK
+        </footer>
+
+    </div>
+
+    <!-- DRINK CUSTOMIZATION MODAL -->
+    <div class="overlay" id="overlay" aria-hidden="true">
+        <div
+            class="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modalTitle"
+        >
+            <button
+                class="close"
+                id="closeDialog"
+                aria-label="Close"
+            >
+                ×
+            </button>
+
+            <div class="dialog-top">
+                <img id="modalPhoto" alt="">
+
+                <div>
+                    <span class="eyebrow">MAKE IT YOURS</span>
+                    <h2 id="modalTitle"></h2>
+                    <p id="modalStarting"></p>
+                </div>
+            </div>
+
+            <h3>Choose your size</h3>
+
+            <div class="segmented size-options">
+                <button class="selected" data-size="Small">
+                    Small
+                </button>
+
+                <button data-size="Big">Big</button>
+            </div>
+
+            <h3>
+                Add-ons
+                <span class="soft">(optional)</span>
+            </h3>
+
+            <div id="addonOptions" class="addon-options"></div>
+
+            <label class="label">
+                Special instructions
+                <span>(optional)</span>
+
+                <input
+                    id="instructions"
+                    placeholder="e.g. Less ice"
+                    maxlength="120"
+                >
+            </label>
+
+            <!-- QUANTITY -->
+            <div class="qtyrow">
+                <span>Quantity</span>
+
+                <div>
+                    <button id="qtyMinus">−</button>
+                    <strong id="qty">1</strong>
+                    <button id="qtyPlus">+</button>
+                </div>
+            </div>
+
+            <!-- MODAL FOOTER -->
+            <div class="dialog-bottom">
+                <strong id="previewTotal">₱0.00</strong>
+
+                <button class="cta" id="addItem">
+                    Add to order +
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- VOID ORDER MODAL -->
+    <div class="overlay" id="voidOverlay" aria-hidden="true">
+        <div
+            class="dialog small-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voidTitle"
+        >
+            <button
+                class="close"
+                id="closeVoid"
+                aria-label="Close"
+            >
+                ×
+            </button>
+
+            <span class="eyebrow">ORDER CORRECTION</span>
+
+            <h2 id="voidTitle">Void order</h2>
+
+            <p class="void-help">
+                The order will remain in history with its original
+                total and a void record.
+            </p>
+
+            <label class="label">
+                Staff name / initials
+
+                <input
+                    id="voidStaff"
+                    maxlength="70"
+                    placeholder="Who is voiding this order?"
+                >
+            </label>
+
+            <label class="label">
+                Reason for void
+
+                <select id="voidReason">
+                    <option value="">Select a reason</option>
+                    <option>Wrong item entered</option>
+                    <option>Duplicate order</option>
+                    <option>Customer changed mind</option>
+                    <option>Customer cancelled</option>
+                    <option>Other</option>
+                </select>
+            </label>
+
+            <label class="label">
+                Additional details
+                <span>(optional)</span>
+
+                <input
+                    id="voidNote"
+                    maxlength="200"
+                    placeholder="Explain the correction"
+                >
+            </label>
+
+            <button id="confirmVoid" class="cta danger">
+                Confirm void
+            </button>
+
+        </div>
+    </div>
+
+    <!-- NOTIFICATION -->
+    <div id="toast" class="toast" role="status"></div>
+
+    <!-- JAVASCRIPT -->
+    <script src="js/firebase-config.js"></script><script type="module" src="js/cloud.js"></script><script src="js/app.js" defer></script>
+
+</body>
+</html>

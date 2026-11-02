@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function loggedIn(){return request.auth != null;}
+  function me(){return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;}
+  function active(){return loggedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && me().active == true;}
+  function owner(){return active() && me().role == 'owner';}
+  function manager(){return active() && me().role in ['owner','staff'];}
+  match /users/{uid} {
+   allow read: if active() && (request.auth.uid == uid || owner());
+   allow create: if owner() && request.resource.data.role in ['owner','staff','viewer'] && request.resource.data.active == true;
+   allow update: if owner() && (uid != request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','role']);
+   allow delete: if false;
+  }
+  match /orders/{id} {
+   allow read: if active();
+   allow create: if manager() && request.resource.data.createdBy == request.auth.uid && request.resource.data.id == id && request.resource.data.status == 'Pending' && request.resource.data.total is number && request.resource.data.total >= 0;
+   allow update: if manager() && resource.data.status != 'Voided' && (
+      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events']) && request.resource.data.status in ['Pending','Preparing','Ready','Completed']) ||
+      (owner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events','voidedBy','voidReason','voidNote','voidedAt','voidedUid']) && request.resource.data.status == 'Voided' && request.resource.data.voidedUid == request.auth.uid)
+    );
+   allow delete: if false;
+  }
+  match /config/{id} {
+   allow read: if active();
+   allow write: if owner() && id == 'menu';
+  }
+ }
+}
