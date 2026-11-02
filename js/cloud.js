@@ -217,56 +217,6 @@ async function refreshStaff() {
   });
 }
 
-$('importLocal').onclick = async () => {
-  try {
-    requireOwner();
-
-    const local = JSON.parse(
-      localStorage.getItem('love_matchaa_order_desk_v3') || 'null'
-    );
-
-    const orders = local?.orders || [];
-
-    if (!orders.length) {
-      $('importMessage').textContent =
-        'No V4 orders found in this browser.';
-      return;
-    }
-
-    if (!confirm(
-      `Import ${orders.length} local orders into the shared database? Existing IDs will be skipped.`
-    )) {
-      return;
-    }
-
-    let added = 0;
-    let skipped = 0;
-
-    for (const o of orders) {
-      const ref = doc(store, 'orders', o.id);
-
-      if ((await getDoc(ref)).exists()) {
-        skipped++;
-        continue;
-      }
-
-      await setDoc(ref, {
-        ...o,
-        createdBy: currentUser.uid,
-        importedBy: currentUser.uid
-      });
-
-      added++;
-    }
-
-    $('importMessage').textContent =
-      `Imported ${added} orders; skipped ${skipped} duplicates. Keep a separate backup.`;
-  } catch (e) {
-    $('importMessage').textContent =
-      'Import stopped: ' + e.message;
-  }
-};
-
 $('staffForm').onsubmit = async e => {
   e.preventDefault();
 
@@ -337,7 +287,6 @@ function reset() {
   document.body.classList.remove('viewer-mode', 'staff-mode');
 
   $('staffPanel').hidden = true;
-  $('migrationPanel').hidden = true;
 }
 
 onAuthStateChanged(auth, async user => {
@@ -374,7 +323,6 @@ onAuthStateChanged(auth, async user => {
     $('appShell').hidden = false;
 
     $('staffPanel').hidden = role !== 'owner';
-    $('migrationPanel').hidden = role !== 'owner';
 
     if (!ready) {
       window.dispatchEvent(new Event('cloud-ready'));
