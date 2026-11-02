@@ -41,7 +41,7 @@
             <button data-page="pos" class="active">✦ New Order</button>
             <button data-page="orders">▤ Order History</button>
             <button data-page="reports">◷ Sales Summary</button>
-            <button data-page="settings">⚙ Menu & Prices</button>
+            <button data-page="settings">⚙ Owner Settings</button>
         </nav>
 
         <!-- MAIN CONTENT -->
@@ -333,11 +333,11 @@
                     ></div>
 
                 </div>
+                <div class="owner-admin-area"><section id="staffPanel" class="card section-card" hidden><h2>Staff accounts · Owner only</h2><p>Only the owner can create and disable accounts.</p><form id="staffForm" class="staff-form"><input id="staffEmail" type="email" placeholder="Staff email" required><input id="staffPassword" type="password" placeholder="Temporary password (6+ characters)" minlength="6" required><select id="staffRole"><option value="viewer">Viewer</option><option value="staff">Staff</option><option value="owner">Owner</option></select><button class="outline" type="submit">Create account</button></form><p id="staffMessage" role="status"></p><div id="staffList"></div></section></div>
             </section>
 
         </main>
-
-        <section id="migrationPanel" class="card section-card" hidden><h2>Import previous local orders</h2><p>Owner only. Run on the ORIGINAL browser/device that contains the V4 order history. Import only once; matching order IDs will be skipped.</p><button id="importLocal" class="outline">Import local V4 orders</button><p id="importMessage" role="status"></p></section><section id="staffPanel" class="card section-card" hidden><h2>Staff accounts · Owner only</h2><p>Only the owner can create and disable accounts.</p><form id="staffForm" class="staff-form"><input id="staffEmail" type="email" placeholder="Staff email" required><input id="staffPassword" type="password" placeholder="Temporary password (6+ characters)" minlength="6" required><select id="staffRole"><option value="viewer">Viewer</option><option value="staff">Staff</option><option value="owner">Owner</option></select><button class="outline" type="submit">Create account</button></form><p id="staffMessage" role="status"></p><div id="staffList"></div></section><!-- FOOTER -->
+        <!-- FOOTER -->
         <footer>
             LOVE &amp; MATCHAA CAFÉ
             <span>✿</span>
