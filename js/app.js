@@ -1,994 +1,1100 @@
 window.addEventListener('cloud-ready', () => {
-'use strict';
+    'use strict';
 
-// ========================================
-// DEFAULT MENU
-// ========================================
+    // ============================================================
+    // LOVE & MATCHAA CAFÉ — ORDER DESK
+    // Firebase-connected POS
+    // ============================================================
 
-const DEFAULT_MENU = [
-    ['Biscoff Matcha Latte', 'matcha', 145, 165],
-    ['Mango Matcha Latte', 'matcha', 150, 170],
-    ['Matcha Ichigo', 'matcha', 150, 170],
-    ['Coconut Matcha', 'matcha', 145, 165],
-    ['Vanilla Matcha Latte', 'matcha', 140, 160],
-    ['Lavender Matcha', 'matcha', 150, 170],
-    ['Dirty Matcha Latte', 'matcha', 155, 175],
-    ['Mango Breeze Coffee', 'coffee', 135, 155],
-    ['Signature Iced Latte', 'coffee', 130, 150],
-    ['Iced Cafe Latte', 'coffee', 120, 140],
-    ['Hot Cafe Latte', 'coffee', 115, 135]
-].map(([name, category, small, big], i) => ({
-    id: i + 1,
-    name,
-    category,
-    small,
-    big,
-    image: `assets/images/drink-${i + 1}.webp`
-}));
+    const $ = id => document.getElementById(id);
 
-// ========================================
-// DEFAULT ADD-ONS
-// ========================================
+    // ============================================================
+    // DEFAULT MENU — 13 DRINKS
+    // ============================================================
 
-const DEFAULT_ADDONS = [
-    {
-        id: 'pearls',
-        name: 'Pearls',
-        price: 15
-    },
-    {
-        id: 'cream',
-        name: 'Cream cheese',
-        price: 20
-    },
-    {
-        id: 'matcha',
-        name: 'Extra matcha',
-        price: 25
-    },
-    {
-        id: 'espresso',
-        name: 'Extra espresso',
-        price: 20
-    }
-];
+    const DEFAULT_MENU = [
+        ['Biscoff Matcha Latte', 'matcha', 145, 165],
+        ['Mango Matcha Latte', 'matcha', 150, 170],
+        ['Matcha Ichigo', 'matcha', 150, 170],
+        ['Coconut Matcha', 'matcha', 145, 165],
+        ['Vanilla Matcha Latte', 'matcha', 140, 160],
+        ['Lavender Matcha', 'matcha', 150, 170],
+        ['Dirty Matcha Latte', 'matcha', 155, 175],
 
-// ========================================
-// LOCAL STORAGE
-// ========================================
+        ['Mango Breeze Coffee', 'coffee', 135, 155],
+        ['Signature Iced Latte', 'coffee', 130, 150],
+        ['Iced Cafe Latte', 'coffee', 120, 140],
+        ['Hot Cafe Latte', 'coffee', 115, 135],
 
-const KEY = 'love_matchaa_order_desk_v3';
+        ['Ube Matcha Latte', 'matcha', 150, 170],
+        ['Banana Matcha Latte', 'matcha', 145, 165]
 
-function read() {
-    try {
-        const data = JSON.parse(localStorage.getItem(KEY));
+    ].map(([name, category, small, big], index) => ({
+        id: index + 1,
+        name,
+        category,
+        small,
+        big,
+        image: index === 11
+            ? 'assets/images/ube-matcha-latte.webp'
+            : index === 12
+                ? 'assets/images/banana-matcha-latte.webp'
+                : `assets/images/drink-${index + 1}.webp`
+    }));
 
-        if (
-            data &&
-            Array.isArray(data.menu) &&
-            Array.isArray(data.orders) &&
-            Array.isArray(data.addons)
-        ) {
-            return data;
+    // ============================================================
+    // DEFAULT ADD-ONS
+    // ============================================================
+
+    const DEFAULT_ADDONS = [
+        {
+            id: 'pearls',
+            name: 'Pearls',
+            price: 15
+        },
+        {
+            id: 'cream',
+            name: 'Cream cheese',
+            price: 20
+        },
+        {
+            id: 'matcha',
+            name: 'Extra matcha',
+            price: 25
+        },
+        {
+            id: 'espresso',
+            name: 'Extra espresso',
+            price: 20
         }
-    } catch {}
+    ];
 
-    return {
+    // ============================================================
+    // APPLICATION STATE
+    // ============================================================
+
+    let db = {
         menu: structuredClone(DEFAULT_MENU),
         addons: structuredClone(DEFAULT_ADDONS),
         orders: []
     };
-}
 
-// ========================================
-// GLOBAL VARIABLES
-// ========================================
+    let cart = [];
+    let category = 'all';
+    let orderType = 'Dine in';
 
-let db = read();
-let cart = [];
-let category = 'all';
-let orderType = 'Dine in';
-let current = null;
-let chosenSize = 'Small';
-let chosenQty = 1;
-let voidId = null;
+    let current = null;
+    let chosenSize = 'Small';
+    let chosenQty = 1;
 
-// ========================================
-// HELPER FUNCTIONS
-// ========================================
+    let voidId = null;
+    let currentPage = 'pos';
 
-const $ = id => document.getElementById(id);
+    // ============================================================
+    // HELPERS
+    // ============================================================
 
-const peso = n =>
-    '₱' + Number(n || 0).toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
+    function peso(value) {
+        return '₱' + Number(value || 0).toLocaleString('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
 
-function persist() {
-    try {
-        localStorage.setItem(KEY, JSON.stringify(db));
-        return true;
-    } catch (e) {
-        alert(
-            'Could not save. Browser storage may be full or disabled.'
+    function esc(value) {
+        return String(value ?? '').replace(
+            /[&<>"']/g,
+            character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[character])
         );
-        return false;
     }
-}
 
-function esc(v) {
-    return String(v ?? '').replace(
-        /[&<>"']/g,
-        c => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        }[c])
-    );
-}
+    function toast(message) {
+        const element = $('toast');
 
-function toast(s) {
-    $('toast').textContent = s;
-    $('toast').style.display = 'block';
+        if (!element) return;
 
-    clearTimeout(window.toastTimer);
+        element.textContent = message;
+        element.style.display = 'block';
 
-    window.toastTimer = setTimeout(() => {
-        $('toast').style.display = 'none';
-    }, 2500);
-}
+        clearTimeout(window.toastTimer);
 
-// ========================================
-// CLOCK AND DATE
-// ========================================
+        window.toastTimer = setTimeout(() => {
+            element.style.display = 'none';
+        }, 3000);
+    }
 
-function clock() {
-    const d = new Date();
+    function localDate(dateValue) {
+        const date = new Date(dateValue);
 
-    $('clock').textContent = d.toLocaleTimeString('en-PH', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-
-    $('today').textContent = d.toLocaleDateString('en-PH', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
-}
-
-clock();
-setInterval(clock, 1000);
-
-// ========================================
-// PAGE NAVIGATION
-// ========================================
-
-function navigate(page) {
-    document.querySelectorAll('[data-page]').forEach(b => {
-        b.classList.toggle(
-            'active',
-            b.dataset.page === page
+        return (
+            date.getFullYear() + '-' +
+            String(date.getMonth() + 1).padStart(2, '0') + '-' +
+            String(date.getDate()).padStart(2, '0')
         );
-    });
-
-    document.querySelectorAll('.page').forEach(p => {
-        p.classList.toggle(
-            'active',
-            p.id === 'page-' + page
-        );
-    });
-
-    if (page === 'orders') {
-        renderOrders();
     }
 
-    if (page === 'reports') {
-        renderReports();
+    function formatDate(dateValue) {
+        if (!dateValue) return '—';
+
+        const date = new Date(dateValue);
+
+        if (Number.isNaN(date.getTime())) return '—';
+
+        return date.toLocaleString('en-PH');
     }
 
-    if (page === 'settings') {
-        renderSettings();
+    function emptyRow(columns, message) {
+        return `
+            <tr>
+                <td colspan="${columns}">
+                    ${esc(message)}
+                </td>
+            </tr>
+        `;
     }
-}
 
-document.querySelectorAll('[data-page]').forEach(b => {
-    b.onclick = () => navigate(b.dataset.page);
-});
+    function updateDrinkCount() {
+        const count = document.querySelector('.catalog .count');
 
-// ========================================
-// CATEGORY FILTER
-// ========================================
+        if (count) {
+            count.textContent = `${db.menu.length} drinks`;
+        }
+    }
 
-document.querySelectorAll('[data-cat]').forEach(b => {
-    b.onclick = () => {
-        category = b.dataset.cat;
+    // ============================================================
+    // CLOCK
+    // ============================================================
 
-        document.querySelectorAll('[data-cat]').forEach(x => {
-            x.classList.toggle('selected', x === b);
+    function updateClock() {
+        const now = new Date();
+
+        if ($('clock')) {
+            $('clock').textContent = now.toLocaleTimeString(
+                'en-PH',
+                {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }
+            );
+        }
+
+        if ($('today')) {
+            $('today').textContent = now.toLocaleDateString(
+                'en-PH',
+                {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                }
+            );
+        }
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ============================================================
+    // PAGE NAVIGATION
+    // ============================================================
+
+    function navigate(page) {
+        currentPage = page;
+
+        document.querySelectorAll('[data-page]').forEach(button => {
+            button.classList.toggle(
+                'active',
+                button.dataset.page === page
+            );
         });
 
-        renderGrid();
-    };
-});
-
-// ========================================
-// ORDER TYPE
-// ========================================
-
-document.querySelectorAll('[data-type]').forEach(b => {
-    b.onclick = () => {
-        orderType = b.dataset.type;
-
-        document.querySelectorAll('[data-type]').forEach(x => {
-            x.classList.toggle('selected', x === b);
+        document.querySelectorAll('.page').forEach(section => {
+            section.classList.toggle(
+                'active',
+                section.id === `page-${page}`
+            );
         });
 
-        $('tableBox').style.display =
-            orderType === 'Dine in' ? 'block' : 'none';
-    };
-});
+        if (page === 'pos') {
+            renderGrid();
+            renderCart();
+        }
 
-// ========================================
-// PRODUCT GRID
-// ========================================
+        if (page === 'orders') {
+            renderOrders();
+        }
 
-function renderGrid() {
-    $('grid').innerHTML = db.menu
-        .filter(p =>
-            category === 'all' ||
-            p.category === category
-        )
-        .map(p => `
+        if (page === 'reports') {
+            renderReports();
+        }
+
+        if (page === 'settings') {
+            renderSettings();
+        }
+    }
+
+    document.querySelectorAll('[data-page]').forEach(button => {
+        button.onclick = () => navigate(button.dataset.page);
+    });
+
+    // Used by cloud.js when switching View / Manage.
+    window.cloudNavigate = navigate;
+
+    // ============================================================
+    // CATEGORY FILTER
+    // ============================================================
+
+    document.querySelectorAll('[data-cat]').forEach(button => {
+        button.onclick = () => {
+            category = button.dataset.cat;
+
+            document.querySelectorAll('[data-cat]').forEach(item => {
+                item.classList.toggle(
+                    'selected',
+                    item === button
+                );
+            });
+
+            renderGrid();
+        };
+    });
+
+    // ============================================================
+    // ORDER TYPE
+    // ============================================================
+
+    document.querySelectorAll('[data-type]').forEach(button => {
+        button.onclick = () => {
+            orderType = button.dataset.type;
+
+            document.querySelectorAll('[data-type]').forEach(item => {
+                item.classList.toggle(
+                    'selected',
+                    item === button
+                );
+            });
+
+            if ($('tableBox')) {
+                $('tableBox').style.display =
+                    orderType === 'Dine in' ? 'block' : 'none';
+            }
+        };
+    });
+
+    // ============================================================
+    // PRODUCT GRID
+    // ============================================================
+
+    function renderGrid() {
+        const grid = $('grid');
+
+        if (!grid) return;
+
+        updateDrinkCount();
+
+        const products = db.menu.filter(product => {
+            return (
+                category === 'all' ||
+                product.category === category
+            );
+        });
+
+        grid.innerHTML = products.map(product => `
             <article class="product">
+
                 <img
-                    src="${p.image}"
-                    alt="${esc(p.name)}"
+                    src="${esc(product.image)}"
+                    alt="${esc(product.name)}"
+                    loading="lazy"
                 >
 
                 <div class="product-info">
-                    <small>${p.category}</small>
 
-                    <h3>${esc(p.name)}</h3>
+                    <small>${esc(product.category)}</small>
+
+                    <h3>${esc(product.name)}</h3>
 
                     <div class="product-bottom">
+
                         <strong>
-                            From ${peso(p.small)}
+                            From ${peso(product.small)}
                         </strong>
 
                         <button
                             class="addbtn"
-                            data-product="${p.id}"
+                            data-product="${product.id}"
+                            type="button"
                         >
                             Add +
                         </button>
+
                     </div>
+
                 </div>
+
             </article>
-        `)
-        .join('');
+        `).join('');
 
-    document.querySelectorAll('[data-product]').forEach(b => {
-        b.onclick = () => {
-            openProduct(Number(b.dataset.product));
-        };
-    });
-}
-
-// ========================================
-// MODAL
-// ========================================
-
-function modal(show, id) {
-    $(id).classList.toggle('show', show);
-
-    $(id).setAttribute(
-        'aria-hidden',
-        String(!show)
-    );
-}
-
-// ========================================
-// OPEN PRODUCT
-// ========================================
-
-function openProduct(id) {
-    current = db.menu.find(p => p.id === id);
-
-    if (!current) {
-        return;
+        grid.querySelectorAll('[data-product]').forEach(button => {
+            button.onclick = () => {
+                openProduct(Number(button.dataset.product));
+            };
+        });
     }
 
-    chosenSize = 'Small';
-    chosenQty = 1;
+    // ============================================================
+    // MODAL HELPERS
+    // ============================================================
 
-    $('modalPhoto').src = current.image;
-    $('modalTitle').textContent = current.name;
+    function modal(show, id) {
+        const element = $(id);
 
-    $('modalStarting').textContent =
-        `Small ${peso(current.small)} · Big ${peso(current.big)}`;
+        if (!element) return;
 
-    $('instructions').value = '';
-    $('qty').textContent = '1';
+        element.classList.toggle('show', show);
+        element.setAttribute('aria-hidden', String(!show));
+    }
 
-    document.querySelectorAll('[data-size]').forEach(b => {
-        b.classList.toggle(
-            'selected',
-            b.dataset.size === 'Small'
-        );
-    });
+    // ============================================================
+    // OPEN DRINK CUSTOMIZATION
+    // ============================================================
 
-    $('addonOptions').innerHTML = db.addons
-        .map(a => `
+    function openProduct(id) {
+        current = db.menu.find(product => product.id === id);
+
+        if (!current) return;
+
+        chosenSize = 'Small';
+        chosenQty = 1;
+
+        $('modalPhoto').src = current.image;
+        $('modalPhoto').alt = current.name;
+
+        $('modalTitle').textContent = current.name;
+
+        $('modalStarting').textContent =
+            `Small ${peso(current.small)} · Big ${peso(current.big)}`;
+
+        $('instructions').value = '';
+        $('qty').textContent = '1';
+
+        document.querySelectorAll('[data-size]').forEach(button => {
+            button.classList.toggle(
+                'selected',
+                button.dataset.size === 'Small'
+            );
+        });
+
+        $('addonOptions').innerHTML = db.addons.map(addon => `
             <label>
+
                 <input
                     type="checkbox"
-                    value="${esc(a.id)}"
+                    value="${esc(addon.id)}"
                 >
 
-                ${esc(a.name)}
-                (+${peso(a.price)})
+                ${esc(addon.name)}
+                (+${peso(addon.price)})
+
             </label>
-        `)
-        .join('');
+        `).join('');
 
-    preview();
-    modal(true, 'overlay');
-}
+        preview();
+        modal(true, 'overlay');
+    }
 
-// ========================================
-// ADD-ONS AND PRICING
-// ========================================
+    // ============================================================
+    // CUSTOMIZATION PRICING
+    // ============================================================
 
-function pickedAddons() {
-    return [
-        ...$('addonOptions').querySelectorAll('input:checked')
-    ]
-        .map(input =>
-            db.addons.find(a => a.id === input.value)
-        )
-        .filter(Boolean);
-}
+    function pickedAddons() {
+        return [
+            ...$('addonOptions').querySelectorAll('input:checked')
+        ]
+            .map(input => {
+                return db.addons.find(
+                    addon => addon.id === input.value
+                );
+            })
+            .filter(Boolean);
+    }
 
-function unitPrice() {
-    return (
-        Number(current[chosenSize.toLowerCase()]) +
-        pickedAddons().reduce(
-            (sum, a) => sum + a.price,
+    function unitPrice() {
+        if (!current) return 0;
+
+        const base = Number(
+            current[chosenSize.toLowerCase()]
+        );
+
+        const addonTotal = pickedAddons().reduce(
+            (total, addon) => total + Number(addon.price),
             0
-        )
-    );
-}
+        );
 
-function preview() {
-    $('previewTotal').textContent =
-        peso(unitPrice() * chosenQty);
-}
+        return base + addonTotal;
+    }
 
-// ========================================
-// SIZE SELECTION
-// ========================================
+    function preview() {
+        $('previewTotal').textContent =
+            peso(unitPrice() * chosenQty);
+    }
 
-document.querySelectorAll('[data-size]').forEach(b => {
-    b.onclick = () => {
-        chosenSize = b.dataset.size;
+    document.querySelectorAll('[data-size]').forEach(button => {
+        button.onclick = () => {
+            chosenSize = button.dataset.size;
 
-        document.querySelectorAll('[data-size]').forEach(x => {
-            x.classList.toggle('selected', x === b);
-        });
+            document.querySelectorAll('[data-size]').forEach(item => {
+                item.classList.toggle(
+                    'selected',
+                    item === button
+                );
+            });
+
+            preview();
+        };
+    });
+
+    $('addonOptions').onchange = preview;
+
+    // ============================================================
+    // QUANTITY
+    // ============================================================
+
+    $('qtyMinus').onclick = () => {
+        chosenQty = Math.max(1, chosenQty - 1);
+
+        $('qty').textContent = chosenQty;
 
         preview();
     };
-});
 
-$('addonOptions').onchange = preview;
+    $('qtyPlus').onclick = () => {
+        chosenQty = Math.min(99, chosenQty + 1);
 
-// ========================================
-// QUANTITY CONTROLS
-// ========================================
+        $('qty').textContent = chosenQty;
 
-$('qtyMinus').onclick = () => {
-    chosenQty = Math.max(1, chosenQty - 1);
+        preview();
+    };
 
-    $('qty').textContent = chosenQty;
+    // ============================================================
+    // CLOSE DRINK MODAL
+    // ============================================================
 
-    preview();
-};
-
-$('qtyPlus').onclick = () => {
-    chosenQty = Math.min(99, chosenQty + 1);
-
-    $('qty').textContent = chosenQty;
-
-    preview();
-};
-
-// ========================================
-// CLOSE PRODUCT MODAL
-// ========================================
-
-$('closeDialog').onclick = () => {
-    modal(false, 'overlay');
-};
-
-$('overlay').onclick = e => {
-    if (e.target === $('overlay')) {
+    $('closeDialog').onclick = () => {
         modal(false, 'overlay');
-    }
-};
+    };
 
-// ========================================
-// ADD ITEM TO CART
-// ========================================
+    $('overlay').onclick = event => {
+        if (event.target === $('overlay')) {
+            modal(false, 'overlay');
+        }
+    };
 
-$('addItem').onclick = () => {
-    if (!current) {
-        return;
-    }
+    // ============================================================
+    // ADD DRINK TO CART
+    // ============================================================
 
-    const selected = pickedAddons().map(a => ({
-        name: a.name,
-        price: a.price
-    }));
+    $('addItem').onclick = () => {
+        if (!current) return;
 
-    const unit = unitPrice();
+        const addons = pickedAddons().map(addon => ({
+            name: addon.name,
+            price: Number(addon.price)
+        }));
 
-    cart.push({
-        name: current.name,
-        productId: current.id,
-        size: chosenSize,
-        addons: selected,
-        qty: chosenQty,
-        note: $('instructions').value.trim(),
-        unit,
-        total: unit * chosenQty
-    });
+        const unit = unitPrice();
 
-    modal(false, 'overlay');
+        cart.push({
+            name: current.name,
+            productId: current.id,
+            size: chosenSize,
+            addons,
+            qty: chosenQty,
+            note: $('instructions').value.trim(),
+            unit,
+            total: unit * chosenQty
+        });
 
-    renderCart();
+        modal(false, 'overlay');
 
-    toast('Added to your order.');
-};
+        renderCart();
 
-// ========================================
-// RENDER CART
-// ========================================
+        toast('Added to your order.');
+    };
 
-function renderCart() {
-    const count = cart.reduce(
-        (s, i) => s + i.qty,
-        0
-    );
+    // ============================================================
+    // CART
+    // ============================================================
 
-    const total = cart.reduce(
-        (s, i) => s + i.total,
-        0
-    );
+    function renderCart() {
+        const count = cart.reduce(
+            (total, item) => total + item.qty,
+            0
+        );
 
-    $('itemCount').textContent = count;
-    $('total').textContent = peso(total);
+        const total = cart.reduce(
+            (sum, item) => sum + item.total,
+            0
+        );
 
-    $('cart').innerHTML = cart.length
-        ? cart.map((i, index) => `
-            <div class="cart-row">
-                <div class="cart-copy">
-                    <strong>
-                        ${i.qty} × ${esc(i.name)}
-                    </strong>
+        $('itemCount').textContent = count;
+        $('total').textContent = peso(total);
 
-                    <small>
-                        ${esc(i.size)}
-
-                        ${i.addons.length
-                            ? ' · ' + esc(
-                                i.addons
-                                    .map(a => a.name)
-                                    .join(', ')
-                            )
-                            : ''
-                        }
-
-                        ${i.note
-                            ? ' · ' + esc(i.note)
-                            : ''
-                        }
-                    </small>
-
-                    <button
-                        class="remove"
-                        data-remove="${index}"
-                    >
-                        Remove
-                    </button>
+        if (!cart.length) {
+            $('cart').innerHTML = `
+                <div class="empty">
+                    <strong>No drinks added yet.</strong>
                 </div>
+            `;
 
-                <b class="amount">
-                    ${peso(i.total)}
-                </b>
-            </div>
-        `).join('')
-        : `
-            <div class="empty">
-                <strong>
-                    No drinks added yet.
-                </strong>
-            </div>
-        `;
+            return;
+        }
 
-    $('cart')
-        .querySelectorAll('[data-remove]')
-        .forEach(b => {
-            b.onclick = () => {
+        $('cart').innerHTML = cart.map((item, index) => {
+            const addonNames = item.addons
+                .map(addon => addon.name)
+                .join(', ');
+
+            return `
+                <div class="cart-row">
+
+                    <div class="cart-copy">
+
+                        <strong>
+                            ${item.qty} × ${esc(item.name)}
+                        </strong>
+
+                        <small>
+                            ${esc(item.size)}
+
+                            ${addonNames
+                                ? ' · ' + esc(addonNames)
+                                : ''}
+
+                            ${item.note
+                                ? ' · ' + esc(item.note)
+                                : ''}
+                        </small>
+
+                        <button
+                            class="remove"
+                            data-remove="${index}"
+                            type="button"
+                        >
+                            Remove
+                        </button>
+
+                    </div>
+
+                    <b class="amount">
+                        ${peso(item.total)}
+                    </b>
+
+                </div>
+            `;
+        }).join('');
+
+        $('cart').querySelectorAll('[data-remove]').forEach(button => {
+            button.onclick = () => {
                 cart.splice(
-                    Number(b.dataset.remove),
+                    Number(button.dataset.remove),
                     1
                 );
 
                 renderCart();
             };
         });
-}
-
-// ========================================
-// RESET CART
-// ========================================
-
-$('resetCart').onclick = () => {
-    if (
-        cart.length &&
-        !confirm('Clear the current unsaved order?')
-    ) {
-        return;
     }
 
-    cart = [];
+    $('resetCart').onclick = () => {
+        if (
+            cart.length &&
+            !confirm('Clear the current unsaved order?')
+        ) {
+            return;
+        }
 
-    renderCart();
-};
-
-// ========================================
-// ORDER ID GENERATOR
-// ========================================
-
-function orderId() {
-    return (
-        'LM-' +
-        Date.now().toString(36).toUpperCase() +
-        '-' +
-        Math.random()
-            .toString(36)
-            .slice(2, 5)
-            .toUpperCase()
-    );
-}
-
-// ========================================
-// SAVE ORDER
-// ========================================
-
-$('saveOrder').onclick = async () => {
-    if (!cart.length) {
-        toast('Please add a drink first.');
-        return;
-    }
-
-    const order = {
-        id: orderId(),
-
-        createdAt: new Date().toISOString(),
-
-        customer: $('customer').value.trim() || 'Walk-in',
-
-        type: orderType,
-
-        table: orderType === 'Dine in'
-            ? $('table').value.trim()
-            : '',
-
-        payment: $('payment').value,
-
-        items: structuredClone(cart),
-
-        total: cart.reduce(
-            (s, i) => s + i.total,
-            0
-        ),
-
-        status: 'Pending',
-
-        events: [
-            {
-                at: new Date().toISOString(),
-                action: 'Order placed'
-            }
-        ]
+        cart = [];
+        renderCart();
     };
 
-    try { await window.cloud.saveOrder(order); } catch(e) { toast('Order not saved: '+e.message); return; }
+    // ============================================================
+    // ORDER ID
+    // ============================================================
 
-    cart = [];
+    function orderId() {
+        return (
+            'LM-' +
+            Date.now().toString(36).toUpperCase() +
+            '-' +
+            Math.random()
+                .toString(36)
+                .slice(2, 5)
+                .toUpperCase()
+        );
+    }
 
-    renderCart();
+    // ============================================================
+    // PLACE ORDER — FIREBASE
+    // ============================================================
 
-    $('customer').value = '';
-    $('table').value = '';
+    $('saveOrder').onclick = async () => {
+        if (!cart.length) {
+            toast('Please add a drink first.');
+            return;
+        }
 
-    toast(`Order ${order.id} saved!`);
+        const button = $('saveOrder');
 
-    navigate('orders');
-};
+        button.disabled = true;
 
-// ========================================
-// RENDER ORDERS
-// ========================================
+        const now = new Date().toISOString();
 
-function renderOrders() {
-    $('ordersBody').innerHTML = db.orders.length
-        ? db.orders.map(o => {
-            const voided = o.status === 'Voided';
+        const order = {
+            id: orderId(),
+            createdAt: now,
 
-            const summary = o.items
-                .map(i =>
-                    `${i.qty}× ${esc(i.name)} (${esc(i.size)})`
-                )
+            customer:
+                $('customer').value.trim() || 'Walk-in',
+
+            type: orderType,
+
+            table:
+                orderType === 'Dine in'
+                    ? $('table').value.trim()
+                    : '',
+
+            payment: $('payment').value,
+
+            items: structuredClone(cart),
+
+            total: cart.reduce(
+                (sum, item) => sum + item.total,
+                0
+            ),
+
+            status: 'Pending',
+
+            events: [
+                {
+                    at: now,
+                    action: 'Order placed'
+                }
+            ]
+        };
+
+        try {
+            await window.cloud.saveOrder(order);
+
+            cart = [];
+
+            renderCart();
+
+            $('customer').value = '';
+            $('table').value = '';
+
+            toast(`Order ${order.id} saved!`);
+
+            navigate('orders');
+
+        } catch (error) {
+            console.error('Save order failed:', error);
+
+            toast('Order not saved: ' + error.message);
+
+        } finally {
+            button.disabled = false;
+        }
+    };
+
+    // ============================================================
+    // ORDER HISTORY
+    // ============================================================
+
+    function renderOrders() {
+        const body = $('ordersBody');
+
+        if (!body) return;
+
+        if (!db.orders.length) {
+            body.innerHTML = emptyRow(
+                6,
+                'No orders yet. Your first order will appear here.'
+            );
+
+            return;
+        }
+
+        body.innerHTML = db.orders.map(order => {
+            const voided = order.status === 'Voided';
+
+            const items = (order.items || [])
+                .map(item => {
+                    return (
+                        `${item.qty}× ${esc(item.name)} ` +
+                        `(${esc(item.size)})`
+                    );
+                })
                 .join('<br>');
 
             const audit = voided
                 ? `
                     <small>
-                        By ${esc(o.voidedBy)} ·
-                        ${new Date(o.voidedAt).toLocaleString('en-PH')}
+                        By ${esc(order.voidedBy || '—')}
+                        · ${formatDate(order.voidedAt)}
 
                         <br>
 
-                        Reason: ${esc(o.voidReason)}
+                        Reason:
+                        ${esc(order.voidReason || '—')}
 
-                        ${o.voidNote
-                            ? ' — ' + esc(o.voidNote)
-                            : ''
-                        }
+                        ${order.voidNote
+                            ? ' — ' + esc(order.voidNote)
+                            : ''}
                     </small>
                 `
                 : '';
 
+            const statusOptions = [
+                'Pending',
+                'Preparing',
+                'Ready',
+                'Completed'
+            ].map(status => `
+                <option
+                    value="${status}"
+                    ${order.status === status ? 'selected' : ''}
+                >
+                    ${status}
+                </option>
+            `).join('');
+
+            const actions = voided
+                ? `
+                    <span class="badge">VOIDED</span>
+                    ${audit}
+                `
+                : `
+                    <select
+                        class="status"
+                        data-status="${esc(order.id)}"
+                    >
+                        ${statusOptions}
+                    </select>
+
+                    <button
+                        class="voidbtn"
+                        data-void="${esc(order.id)}"
+                        type="button"
+                    >
+                        Void
+                    </button>
+                `;
+
             return `
                 <tr>
+
                     <td>
-                        <strong>${esc(o.id)}</strong>
+                        <strong>${esc(order.id)}</strong>
                     </td>
 
                     <td>
-                        ${new Date(o.createdAt).toLocaleString('en-PH')}
+                        ${formatDate(order.createdAt)}
                     </td>
 
                     <td>
-                        ${esc(o.customer)}
+                        ${esc(order.customer || 'Walk-in')}
 
                         <small>
-                            ${esc(o.type)}
+                            ${esc(order.type || '')}
 
-                            ${o.table
-                                ? ' · ' + esc(o.table)
-                                : ''
-                            }
+                            ${order.table
+                                ? ' · ' + esc(order.table)
+                                : ''}
 
-                            · ${esc(o.payment)}
+                            · ${esc(order.payment || '')}
                         </small>
                     </td>
 
-                    <td>${summary}</td>
+                    <td>${items}</td>
 
                     <td>
-                        <strong>${peso(o.total)}</strong>
+                        <strong>${peso(order.total)}</strong>
                     </td>
 
-                    <td>
-                        ${voided
-                            ? `
-                                <span class="badge">
-                                    VOIDED
-                                </span>
+                    <td>${actions}</td>
 
-                                ${audit}
-                            `
-                            : `
-                                <select
-                                    class="status"
-                                    data-status="${esc(o.id)}"
-                                >
-                                    ${[
-                                        'Pending',
-                                        'Preparing',
-                                        'Ready',
-                                        'Completed'
-                                    ].map(s => `
-                                        <option
-                                            ${o.status === s
-                                                ? 'selected'
-                                                : ''
-                                            }
-                                        >
-                                            ${s}
-                                        </option>
-                                    `).join('')}
-                                </select>
-
-                                <button
-                                    class="voidbtn"
-                                    data-void="${esc(o.id)}"
-                                >
-                                    Void
-                                </button>
-                            `
-                        }
-                    </td>
                 </tr>
             `;
-        }).join('')
-        : `
-            <tr>
-                <td colspan="6">
-                    No orders yet.
-                    Your first order will appear here.
-                </td>
-            </tr>
-        `;
+        }).join('');
 
-    // Update order status
-
-    $('ordersBody')
-        .querySelectorAll('[data-status]')
-        .forEach(el => {
-            el.onchange = async () => {
-                const o = db.orders.find(
-                    x => x.id === el.dataset.status
+        // Status changes are saved to Firebase.
+        body.querySelectorAll('[data-status]').forEach(select => {
+            select.onchange = async () => {
+                const order = db.orders.find(
+                    item => item.id === select.dataset.status
                 );
 
-                if (!o || o.status === 'Voided') {
+                if (!order || order.status === 'Voided') {
                     return;
                 }
 
-                const old = o.status;
+                const previousStatus = order.status;
 
-                try { await window.cloud.updateStatus(o, el.value); } catch(e) { toast('Update failed: '+e.message); }
+                select.disabled = true;
 
-                renderOrders();
+                try {
+                    await window.cloud.updateStatus(
+                        order,
+                        select.value
+                    );
+
+                    toast('Order status updated.');
+
+                } catch (error) {
+                    select.value = previousStatus;
+
+                    toast('Update failed: ' + error.message);
+
+                } finally {
+                    select.disabled = false;
+                }
             };
         });
 
-    // Void order button
-
-    $('ordersBody')
-        .querySelectorAll('[data-void]')
-        .forEach(el => {
-            el.onclick = () => {
-                openVoid(el.dataset.void);
+        body.querySelectorAll('[data-void]').forEach(button => {
+            button.onclick = () => {
+                openVoid(button.dataset.void);
             };
         });
-}
 
-// ========================================
-// OPEN VOID MODAL
-// ========================================
+        // View-only mode should not expose editing controls.
+        const viewOnly = document.body.classList.contains(
+            'viewer-mode'
+        );
 
-function openVoid(id) {
-    const o = db.orders.find(x => x.id === id);
+        if (viewOnly) {
+            body.querySelectorAll('[data-status]').forEach(select => {
+                select.disabled = true;
+            });
 
-    if (!o || o.status === 'Voided') {
-        return;
+            body.querySelectorAll('[data-void]').forEach(button => {
+                button.style.display = 'none';
+            });
+        }
     }
 
-    voidId = id;
+    // ============================================================
+    // VOID ORDER
+    // ============================================================
 
-    $('voidTitle').textContent = 'Void ' + id;
+    function openVoid(id) {
+        const order = db.orders.find(item => item.id === id);
 
-    $('voidStaff').value = '';
-    $('voidReason').value = '';
-    $('voidNote').value = '';
+        if (!order || order.status === 'Voided') {
+            return;
+        }
 
-    modal(true, 'voidOverlay');
-}
+        voidId = id;
 
-// ========================================
-// CLOSE VOID MODAL
-// ========================================
+        $('voidTitle').textContent = 'Void ' + id;
 
-$('closeVoid').onclick = () => {
-    modal(false, 'voidOverlay');
-};
+        $('voidStaff').value = '';
+        $('voidReason').value = '';
+        $('voidNote').value = '';
 
-$('voidOverlay').onclick = e => {
-    if (e.target === $('voidOverlay')) {
+        modal(true, 'voidOverlay');
+    }
+
+    $('closeVoid').onclick = () => {
         modal(false, 'voidOverlay');
-    }
-};
+    };
 
-// ========================================
-// CONFIRM VOID
-// ========================================
+    $('voidOverlay').onclick = event => {
+        if (event.target === $('voidOverlay')) {
+            modal(false, 'voidOverlay');
+        }
+    };
 
-$('confirmVoid').onclick = async () => {
-    const staff = $('voidStaff').value.trim();
-    const reason = $('voidReason').value;
-    const note = $('voidNote').value.trim();
+    $('confirmVoid').onclick = async () => {
+        const staff = $('voidStaff').value.trim();
+        const reason = $('voidReason').value;
+        const note = $('voidNote').value.trim();
 
-    if (!staff || !reason) {
-        toast('Staff name and void reason are required.');
-        return;
-    }
+        if (!staff || !reason) {
+            toast('Staff name and void reason are required.');
+            return;
+        }
 
-    const o = db.orders.find(x => x.id === voidId);
+        const order = db.orders.find(
+            item => item.id === voidId
+        );
 
-    if (!o || o.status === 'Voided') {
-        return;
-    }
+        if (!order || order.status === 'Voided') {
+            return;
+        }
 
-    if (
-        !confirm(
-            `Void ${o.id} (${peso(o.total)})?\n\n` +
-            'This transaction will stay in order history ' +
-            'but be excluded from sales.'
-        )
-    ) {
-        return;
-    }
+        const confirmed = confirm(
+            `Void ${order.id} (${peso(order.total)})?\n\n` +
+            'This transaction will remain in order history ' +
+            'but will be excluded from sales.'
+        );
 
-    try { await window.cloud.voidOrder(o,staff,reason,note); } catch(e) { toast('Void failed: '+e.message); return; }
+        if (!confirmed) return;
 
-    modal(false, 'voidOverlay');
+        const button = $('confirmVoid');
 
-    renderOrders();
-    renderReports();
+        button.disabled = true;
 
-    toast('Order voided. Audit details retained.');
-};
+        try {
+            await window.cloud.voidOrder(
+                order,
+                staff,
+                reason,
+                note
+            );
 
-// ========================================
-// LOCAL DATE
-// ========================================
+            modal(false, 'voidOverlay');
 
-function localDate(iso) {
-    const d = new Date(iso);
+            toast('Order voided. Audit details retained.');
 
-    return (
-        `${d.getFullYear()}-` +
-        `${String(d.getMonth() + 1).padStart(2, '0')}-` +
-        `${String(d.getDate()).padStart(2, '0')}`
-    );
-}
+        } catch (error) {
+            toast('Void failed: ' + error.message);
 
-// ========================================
-// REPORTS
-// ========================================
+        } finally {
+            button.disabled = false;
+        }
+    };
 
-function renderReports() {
-    const today =
-        $('reportDate').value ||
-        localDate(new Date().toISOString());
+    // ============================================================
+    // SALES SUMMARY
+    // ============================================================
 
-    const active = db.orders.filter(
-        o => o.status !== 'Voided'
-    );
+    function renderReports() {
+        const selectedDate =
+            $('reportDate').value ||
+            localDate(new Date());
 
-    const todays = active.filter(
-        o => localDate(o.createdAt) === today
-    );
+        const activeOrders = db.orders.filter(
+            order => order.status !== 'Voided'
+        );
 
-    // Today's revenue
+        const selectedOrders = activeOrders.filter(
+            order => localDate(order.createdAt) === selectedDate
+        );
 
-    $('todayRevenue').textContent = peso(
-        todays.reduce((s, o) => s + o.total, 0)
-    );
+        const selectedRevenue = selectedOrders.reduce(
+            (total, order) => total + Number(order.total || 0),
+            0
+        );
 
-    // Today's order count
+        const allRevenue = activeOrders.reduce(
+            (total, order) => total + Number(order.total || 0),
+            0
+        );
 
-    $('todayCount').textContent = todays.length;
+        const voidCount = db.orders.filter(
+            order => order.status === 'Voided'
+        ).length;
 
-    // Overall revenue
+        $('todayRevenue').textContent = peso(selectedRevenue);
+        $('todayCount').textContent = selectedOrders.length;
 
-    $('allRevenue').textContent = peso(
-        active.reduce((s, o) => s + o.total, 0)
-    );
+        $('allRevenue').textContent = peso(allRevenue);
+        $('voidCount').textContent = voidCount;
 
-    // Voided order count
+        // Drink breakdown.
+        const breakdown = {};
 
-    $('voidCount').textContent = db.orders.filter(
-        o => o.status === 'Voided'
-    ).length;
+        selectedOrders.forEach(order => {
+            (order.items || []).forEach(item => {
+                const name = item.name;
 
-    // Product sales breakdown
+                if (!breakdown[name]) {
+                    breakdown[name] = {
+                        qty: 0,
+                        total: 0
+                    };
+                }
 
-    const data = {};
-
-    todays.forEach(o => {
-        o.items.forEach(i => {
-            const key = i.name;
-
-            data[key] ??= {
-                qty: 0,
-                total: 0
-            };
-
-            data[key].qty += i.qty;
-            data[key].total += i.total;
+                breakdown[name].qty += Number(item.qty || 0);
+                breakdown[name].total += Number(item.total || 0);
+            });
         });
-    });
 
-    // Orders for selected date
+        const breakdownRows = Object.entries(breakdown).map(
+            ([name, values]) => `
+                <tr>
+                    <td>${esc(name)}</td>
+                    <td>${values.qty}</td>
+                    <td>${peso(values.total)}</td>
+                </tr>
+            `
+        ).join('');
 
-    $('dateOrders').innerHTML = db.orders
-        .filter(o => localDate(o.createdAt) === today)
-        .map(o => `
+        $('breakdown').innerHTML =
+            breakdownRows ||
+            emptyRow(3, 'No orders recorded for this date.');
+
+        // Transactions for selected date.
+        const dateRows = db.orders
+            .filter(
+                order =>
+                    localDate(order.createdAt) === selectedDate
+            )
+            .map(order => `
+                <tr>
+
+                    <td>${esc(order.id)}</td>
+
+                    <td>
+                        ${new Date(order.createdAt)
+                            .toLocaleTimeString('en-PH')}
+                    </td>
+
+                    <td>${esc(order.status)}</td>
+
+                    <td>
+                        ${peso(
+                            order.status === 'Voided'
+                                ? 0
+                                : order.total
+                        )}
+                    </td>
+
+                </tr>
+            `)
+            .join('');
+
+        $('dateOrders').innerHTML =
+            dateRows ||
+            emptyRow(4, 'No transactions for this date.');
+    }
+
+    // ============================================================
+    // OWNER SETTINGS — MENU PRICES
+    // ============================================================
+
+    function renderSettings() {
+        $('priceBody').innerHTML = db.menu.map(product => `
             <tr>
-                <td>${esc(o.id)}</td>
 
-                <td>
-                    ${new Date(o.createdAt).toLocaleTimeString('en-PH')}
-                </td>
-
-                <td>${esc(o.status)}</td>
-
-                <td>
-                    ${peso(
-                        o.status === 'Voided'
-                            ? 0
-                            : o.total
-                    )}
-                </td>
-            </tr>
-        `)
-        .join('') || `
-            <tr>
-                <td colspan="4">
-                    No transactions for this date.
-                </td>
-            </tr>
-        `;
-
-    // Sales breakdown table
-
-    $('breakdown').innerHTML = Object.entries(data)
-        .map(([name, v]) => `
-            <tr>
-                <td>${esc(name)}</td>
-                <td>${v.qty}</td>
-                <td>${peso(v.total)}</td>
-            </tr>
-        `)
-        .join('') || `
-            <tr>
-                <td colspan="3">
-                    No orders recorded today.
-                </td>
-            </tr>
-        `;
-}
-
-// ========================================
-// SETTINGS
-// ========================================
-
-function renderSettings() {
-    // Menu prices
-
-    $('priceBody').innerHTML = db.menu
-        .map(p => `
-            <tr>
-                <td>${esc(p.name)}</td>
+                <td>${esc(product.name)}</td>
 
                 <td>
                     <input
                         type="number"
                         min="0"
                         step="0.01"
-                        data-price="${p.id}:small"
-                        value="${p.small}"
+                        data-price="${product.id}:small"
+                        value="${Number(product.small)}"
                     >
                 </td>
 
@@ -997,318 +1103,436 @@ function renderSettings() {
                         type="number"
                         min="0"
                         step="0.01"
-                        data-price="${p.id}:big"
-                        value="${p.big}"
+                        data-price="${product.id}:big"
+                        value="${Number(product.big)}"
                     >
                 </td>
+
             </tr>
-        `)
-        .join('');
+        `).join('');
 
-    // Add-on prices
-
-    $('addonSettings').innerHTML = db.addons
-        .map(a => `
+        $('addonSettings').innerHTML = db.addons.map(addon => `
             <label class="label">
-                ${esc(a.name)} (₱)
+
+                ${esc(addon.name)} (₱)
 
                 <input
                     type="number"
                     min="0"
                     step="0.01"
-                    data-addon="${esc(a.id)}"
-                    value="${a.price}"
+                    data-addon="${esc(addon.id)}"
+                    value="${Number(addon.price)}"
                 >
+
             </label>
-        `)
-        .join('');
-}
-
-// ========================================
-// SAVE SETTINGS
-// ========================================
-
-$('saveSettings').onclick = async () => {
-    const prices = [
-        ...document.querySelectorAll('[data-price]')
-    ];
-
-    const addons = [
-        ...document.querySelectorAll('[data-addon]')
-    ];
-
-    const invalid = [...prices, ...addons].some(el =>
-        el.value.trim() === '' ||
-        !Number.isFinite(Number(el.value)) ||
-        Number(el.value) < 0
-    );
-
-    if (invalid) {
-        toast('Please enter valid non-negative prices.');
-        return;
+        `).join('');
     }
 
-    // Update menu prices
+    // ============================================================
+    // SAVE MENU TO FIREBASE
+    // ============================================================
 
-    prices.forEach(el => {
-        const [id, size] = el.dataset.price.split(':');
+    $('saveSettings').onclick = async () => {
+        const priceInputs = [
+            ...document.querySelectorAll('[data-price]')
+        ];
 
-        db.menu.find(
-            p => p.id === Number(id)
-        )[size] = Number(el.value);
-    });
+        const addonInputs = [
+            ...document.querySelectorAll('[data-addon]')
+        ];
 
-    // Update add-on prices
+        const allInputs = [
+            ...priceInputs,
+            ...addonInputs
+        ];
 
-    addons.forEach(el => {
-        db.addons.find(
-            a => a.id === el.dataset.addon
-        ).price = Number(el.value);
-    });
+        const invalid = allInputs.some(input => {
+            return (
+                input.value.trim() === '' ||
+                !Number.isFinite(Number(input.value)) ||
+                Number(input.value) < 0
+            );
+        });
 
-    try { await window.cloud.saveMenu(db.menu,db.addons); toast('Menu prices saved!'); } catch(e) { toast('Could not save prices: '+e.message); }
-    renderGrid();
-};
-
-// ========================================
-// CSV DOWNLOAD FUNCTION
-// ========================================
-
-function downloadCSV(filename, rows) {
-    const csv =
-        '\ufeff' +
-        rows
-            .map(row =>
-                row
-                    .map(v =>
-                        '"' +
-                        ( /^[=+\-@\t\r]/.test(String(v ?? '')) ? '\'' + String(v ?? '') : String(v ?? '') ).replaceAll('"', '""') +
-                        '"'
-                    )
-                    .join(',')
-            )
-            .join('\r\n');
-
-    const url = URL.createObjectURL(
-        new Blob([csv], {
-            type: 'text/csv;charset=utf-8;'
-        })
-    );
-
-    const a = document.createElement('a');
-
-    a.href = url;
-    a.download = filename;
-
-    document.body.appendChild(a);
-
-    a.click();
-    setTimeout(() => a.remove(), 1000);
-
-    setTimeout(() => {
-        URL.revokeObjectURL(url);
-    }, 1000);
-}
-
-// ========================================
-// EXPORT ALL ORDERS
-// ========================================
-
-$('exportOrders').onclick = () => {
-    downloadCSV(
-        'love-matchaa-orders.csv',
-        [
-            [
-                'Order ID',
-                'Date',
-                'Customer',
-                'Type',
-                'Table',
-                'Payment',
-                'Items',
-                'Total',
-                'Status',
-                'Voided At',
-                'Voided By',
-                'Void Reason',
-                'Void Note',
-                'Audit Events'
-            ],
-
-            ...db.orders.map(o => [
-                o.id,
-
-                new Date(o.createdAt).toLocaleString('en-PH'),
-
-                o.customer,
-                o.type,
-                o.table,
-                o.payment,
-
-                o.items
-                    .map(i =>
-                        `${i.qty}x ${i.name} ${i.size} ` +
-                        `${i.addons.map(a => a.name).join('+')}`
-                    )
-                    .join('; '),
-
-                o.total,
-                o.status,
-                o.voidedAt || '',
-                o.voidedBy || '',
-                o.voidReason || '',
-                o.voidNote || '',
-
-                (o.events || [])
-                    .map(e => `${e.at}: ${e.action}`)
-                    .join('; ')
-            ])
-        ]
-    );
-};
-
-// ========================================
-// EXPORT SALES
-// ========================================
-
-$('exportSales').onclick = () => {
-    downloadCSV(
-        'love-matchaa-sales.csv',
-        [
-            [
-                'Order ID',
-                'Date',
-                'Customer',
-                'Status',
-                'Amount',
-                'Voided By',
-                'Void Reason'
-            ],
-
-            ...db.orders.map(o => [
-                o.id,
-
-                new Date(o.createdAt).toLocaleString('en-PH'),
-
-                o.customer,
-                o.status,
-
-                o.status === 'Voided'
-                    ? 0
-                    : o.total,
-
-                o.voidedBy || '',
-                o.voidReason || ''
-            ])
-        ]
-    );
-};
-
-// ========================================
-// REPORT DATE
-// ========================================
-
-$('reportDate').value = localDate(
-    new Date().toISOString()
-);
-
-$('reportDate').addEventListener(
-    'change',
-    renderReports
-);
-
-// ========================================
-// END OF DAY REPORT
-// ========================================
-
-$('endOfDay').onclick = () => {
-    const day = $('reportDate').value;
-
-    const rows = db.orders.filter(
-        o => localDate(o.createdAt) === day
-    );
-
-    downloadCSV(
-        `love-matchaa-end-of-day-${day}.csv`,
-        [
-            [
-                'Order ID',
-                'Date',
-                'Customer',
-                'Order Type',
-                'Payment',
-                'Items',
-                'Status',
-                'Original Total',
-                'Sales Amount',
-                'Voided By',
-                'Void Reason'
-            ],
-
-            ...rows.map(o => [
-                o.id,
-
-                new Date(o.createdAt).toLocaleString('en-PH'),
-
-                o.customer,
-                o.type,
-                o.payment,
-
-                o.items
-                    .map(i =>
-                        `${i.qty}x ${i.name} (${i.size})`
-                    )
-                    .join('; '),
-
-                o.status,
-                o.total,
-
-                o.status === 'Voided'
-                    ? 0
-                    : o.total,
-
-                o.voidedBy || '',
-                o.voidReason || ''
-            ])
-        ]
-    );
-};
-
-// ========================================
-// AUTOMATIC DATE REFRESH
-// ========================================
-
-let lastDay = localDate(
-    new Date().toISOString()
-);
-
-setInterval(() => {
-    const now = localDate(
-        new Date().toISOString()
-    );
-
-    if (now !== lastDay) {
-        if ($('reportDate').value === lastDay) {
-            $('reportDate').value = now;
+        if (invalid) {
+            toast('Please enter valid non-negative prices.');
+            return;
         }
 
-        lastDay = now;
+        // Work on copies so failed Firebase saves don't
+        // silently change the current menu.
+        const updatedMenu = structuredClone(db.menu);
+        const updatedAddons = structuredClone(db.addons);
 
-        renderReports();
+        priceInputs.forEach(input => {
+            const [id, size] = input.dataset.price.split(':');
+
+            const product = updatedMenu.find(
+                item => item.id === Number(id)
+            );
+
+            if (product) {
+                product[size] = Number(input.value);
+            }
+        });
+
+        addonInputs.forEach(input => {
+            const addon = updatedAddons.find(
+                item => item.id === input.dataset.addon
+            );
+
+            if (addon) {
+                addon.price = Number(input.value);
+            }
+        });
+
+        const button = $('saveSettings');
+
+        button.disabled = true;
+
+        try {
+            await window.cloud.saveMenu(
+                updatedMenu,
+                updatedAddons
+            );
+
+            db.menu = updatedMenu;
+            db.addons = updatedAddons;
+
+            renderGrid();
+            renderSettings();
+
+            toast('Menu prices saved to Firebase!');
+
+        } catch (error) {
+            toast('Could not save prices: ' + error.message);
+
+        } finally {
+            button.disabled = false;
+        }
+    };
+
+    // ============================================================
+    // CSV EXPORT HELPER
+    // ============================================================
+
+    function downloadCSV(filename, rows) {
+        const csv = '\ufeff' + rows.map(row => {
+            return row.map(value => {
+                let text = String(value ?? '');
+
+                // Prevent spreadsheet formula injection.
+                if (/^[=+\-@\t\r]/.test(text)) {
+                    text = "'" + text;
+                }
+
+                return '"' + text.replaceAll('"', '""') + '"';
+            }).join(',');
+        }).join('\r\n');
+
+        const blob = new Blob(
+            [csv],
+            {
+                type: 'text/csv;charset=utf-8;'
+            }
+        );
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = filename;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 1000);
     }
-}, 30000);
 
-// ========================================
-// INITIALIZE APPLICATION
-// ========================================
+    // ============================================================
+    // EXPORT ORDER HISTORY
+    // ============================================================
 
-renderGrid();
-renderCart();
-renderReports();
-window.cloudRender = (orders, menuData) => {
-    db.orders = orders;
-    if (menuData) { db.menu = menuData.menu; db.addons = menuData.addons; renderGrid(); }
-    renderOrders(); renderReports();
-};
-window.dispatchEvent(new Event("pos-ready"));
+    $('exportOrders').onclick = () => {
+        const headers = [
+            'Order ID',
+            'Date',
+            'Customer',
+            'Type',
+            'Table',
+            'Payment',
+            'Items',
+            'Total',
+            'Status',
+            'Voided At',
+            'Voided By',
+            'Void Reason',
+            'Void Note',
+            'Audit Events'
+        ];
+
+        const rows = db.orders.map(order => [
+            order.id,
+
+            formatDate(order.createdAt),
+
+            order.customer || '',
+            order.type || '',
+            order.table || '',
+            order.payment || '',
+
+            (order.items || [])
+                .map(item => {
+                    const addons = (item.addons || [])
+                        .map(addon => addon.name)
+                        .join('+');
+
+                    return (
+                        `${item.qty}x ${item.name} ` +
+                        `${item.size} ${addons}`
+                    );
+                })
+                .join('; '),
+
+            order.total,
+            order.status,
+
+            order.voidedAt || '',
+            order.voidedBy || '',
+            order.voidReason || '',
+            order.voidNote || '',
+
+            (order.events || [])
+                .map(event => {
+                    return `${event.at}: ${event.action}`;
+                })
+                .join('; ')
+        ]);
+
+        downloadCSV(
+            'love-matchaa-orders.csv',
+            [headers, ...rows]
+        );
+    };
+
+    // ============================================================
+    // EXPORT SALES
+    // ============================================================
+
+    $('exportSales').onclick = () => {
+        const headers = [
+            'Order ID',
+            'Date',
+            'Customer',
+            'Status',
+            'Amount',
+            'Voided By',
+            'Void Reason'
+        ];
+
+        const rows = db.orders.map(order => [
+            order.id,
+
+            formatDate(order.createdAt),
+
+            order.customer || '',
+            order.status,
+
+            order.status === 'Voided'
+                ? 0
+                : order.total,
+
+            order.voidedBy || '',
+            order.voidReason || ''
+        ]);
+
+        downloadCSV(
+            'love-matchaa-sales.csv',
+            [headers, ...rows]
+        );
+    };
+
+    // ============================================================
+    // REPORT DATE
+    // ============================================================
+
+    $('reportDate').value = localDate(new Date());
+
+    $('reportDate').addEventListener(
+        'change',
+        renderReports
+    );
+
+    // ============================================================
+    // END-OF-DAY CSV
+    // ============================================================
+
+    $('endOfDay').onclick = () => {
+        const day = $('reportDate').value;
+
+        const orders = db.orders.filter(
+            order => localDate(order.createdAt) === day
+        );
+
+        const headers = [
+            'Order ID',
+            'Date',
+            'Customer',
+            'Order Type',
+            'Payment',
+            'Items',
+            'Status',
+            'Original Total',
+            'Sales Amount',
+            'Voided By',
+            'Void Reason'
+        ];
+
+        const rows = orders.map(order => [
+            order.id,
+
+            formatDate(order.createdAt),
+
+            order.customer || '',
+            order.type || '',
+            order.payment || '',
+
+            (order.items || [])
+                .map(item => {
+                    return (
+                        `${item.qty}x ${item.name} ` +
+                        `(${item.size})`
+                    );
+                })
+                .join('; '),
+
+            order.status,
+            order.total,
+
+            order.status === 'Voided'
+                ? 0
+                : order.total,
+
+            order.voidedBy || '',
+            order.voidReason || ''
+        ]);
+
+        downloadCSV(
+            `love-matchaa-end-of-day-${day}.csv`,
+            [headers, ...rows]
+        );
+    };
+
+    // ============================================================
+    // AUTOMATIC DATE REFRESH
+    // ============================================================
+
+    let lastDay = localDate(new Date());
+
+    setInterval(() => {
+        const today = localDate(new Date());
+
+        if (today !== lastDay) {
+            if ($('reportDate').value === lastDay) {
+                $('reportDate').value = today;
+            }
+
+            lastDay = today;
+
+            renderReports();
+        }
+    }, 30000);
+
+    // ============================================================
+    // MERGE FIREBASE MENU WITH DEFAULT MENU
+    // ============================================================
+
+    function mergeMenu(savedMenu) {
+        if (!Array.isArray(savedMenu)) {
+            return structuredClone(DEFAULT_MENU);
+        }
+
+        const merged = DEFAULT_MENU.map(defaultDrink => {
+            const savedDrink = savedMenu.find(drink => {
+                return (
+                    Number(drink.id) === defaultDrink.id ||
+                    drink.name === defaultDrink.name
+                );
+            });
+
+            if (!savedDrink) {
+                return { ...defaultDrink };
+            }
+
+            return {
+                ...defaultDrink,
+                ...savedDrink,
+
+                // Keep the correct ID and image path.
+                id: defaultDrink.id,
+                image: defaultDrink.image
+            };
+        });
+
+        // Preserve any additional drinks that might already
+        // have been added to Firebase in the future.
+        const extraDrinks = savedMenu.filter(savedDrink => {
+            return !DEFAULT_MENU.some(defaultDrink => {
+                return (
+                    Number(savedDrink.id) === defaultDrink.id ||
+                    savedDrink.name === defaultDrink.name
+                );
+            });
+        });
+
+        return [
+            ...merged,
+            ...extraDrinks
+        ];
+    }
+
+    // ============================================================
+    // FIREBASE REAL-TIME UPDATES
+    // ============================================================
+
+    window.cloudRender = (orders, menuData) => {
+        if (Array.isArray(orders)) {
+            db.orders = orders;
+        }
+
+        if (menuData) {
+            db.menu = mergeMenu(menuData.menu);
+
+            db.addons = Array.isArray(menuData.addons)
+                ? structuredClone(menuData.addons)
+                : structuredClone(DEFAULT_ADDONS);
+        }
+
+        renderGrid();
+        renderOrders();
+        renderReports();
+
+        // Avoid overwriting prices while the owner is typing.
+        if (currentPage !== 'settings') {
+            renderSettings();
+        }
+    };
+
+    // ============================================================
+    // INITIALIZE APPLICATION
+    // ============================================================
+
+    renderGrid();
+    renderCart();
+    renderOrders();
+    renderReports();
+    renderSettings();
+
+    // Signal that the POS interface is initialized.
+    window.dispatchEvent(new Event('pos-ready'));
+
 });
