@@ -76,7 +76,8 @@ window.addEventListener('cloud-ready', () => {
     let db = {
         menu: structuredClone(DEFAULT_MENU),
         addons: structuredClone(DEFAULT_ADDONS),
-        orders: []
+        orders: [],
+        oatMilkPrice: 20
     };
 
     let cart = [];
@@ -86,6 +87,34 @@ window.addEventListener('cloud-ready', () => {
     let current = null;
     let chosenSize = 'Small';
     let chosenQty = 1;
+    let chosenMilk = 'Fresh Milk';
+
+    // These drinks allow Fresh Milk to be substituted with Oat Milk.
+    const FRESH_MILK_DRINKS = [
+        'Biscoff Matcha Latte',
+        'Mango Matcha Latte',
+        'Matcha Ichigo'
+    ];
+
+    // These drinks already use Oat Milk as their standard milk.
+    const OAT_MILK_DEFAULT_DRINKS = [
+        'Vanilla Matcha Latte',
+        'Lavender Matcha'
+    ];
+
+    function milkTypeFor(product) {
+        if (!product) return 'none';
+
+        if (FRESH_MILK_DRINKS.includes(product.name)) {
+            return 'choice';
+        }
+
+        if (OAT_MILK_DEFAULT_DRINKS.includes(product.name)) {
+            return 'default-oat';
+        }
+
+        return 'none';
+    }
 
     let voidId = null;
     let currentPage = 'pos';
@@ -384,6 +413,54 @@ window.addEventListener('cloud-ready', () => {
 
         $('instructions').value = '';
         $('qty').textContent = '1';
+        chosenMilk = 'Fresh Milk';
+
+        // Milk customization is shown only for the applicable drinks.
+        const milkOptions = $('milkOptions');
+        const milkType = milkTypeFor(current);
+
+        if (milkType === 'choice') {
+            milkOptions.innerHTML = `
+                <h3>Milk option <span class="soft">(optional)</span></h3>
+                <div class="addon-options milk-options">
+                    <label>
+                        <input type="radio" name="milkChoice" value="Fresh Milk" checked>
+                        Fresh Milk
+                    </label>
+                    <label>
+                        <input type="radio" name="milkChoice" value="Oat Milk">
+                        Oat Milk (+${peso(db.oatMilkPrice)})
+                    </label>
+                </div>
+            `;
+
+            milkOptions.hidden = false;
+
+            milkOptions.querySelectorAll('input[name="milkChoice"]').forEach(input => {
+                input.addEventListener('change', () => {
+                    chosenMilk = input.value;
+                    preview();
+                });
+            });
+
+        } else if (milkType === 'default-oat') {
+            chosenMilk = 'Oat Milk';
+
+            milkOptions.innerHTML = `
+                <h3>Milk</h3>
+                <p class="milk-standard">
+                    Oat Milk
+                    <span class="soft">(standard · no extra charge)</span>
+                </p>
+            `;
+
+            milkOptions.hidden = false;
+
+        } else {
+            chosenMilk = '';
+            milkOptions.innerHTML = '';
+            milkOptions.hidden = true;
+        }
 
         document.querySelectorAll('[data-size]').forEach(button => {
             button.classList.toggle(
@@ -438,7 +515,12 @@ window.addEventListener('cloud-ready', () => {
             0
         );
 
-        return base + addonTotal;
+        const milkExtra =
+            milkTypeFor(current) === 'choice' && chosenMilk === 'Oat Milk'
+                ? Number(db.oatMilkPrice || 0)
+                : 0;
+
+        return base + addonTotal + milkExtra;
     }
 
     function preview() {
@@ -515,6 +597,12 @@ window.addEventListener('cloud-ready', () => {
             name: current.name,
             productId: current.id,
             size: chosenSize,
+            milk: chosenMilk,
+            milkExtra: (
+                milkTypeFor(current) === 'choice' && chosenMilk === 'Oat Milk'
+                    ? Number(db.oatMilkPrice || 0)
+                    : 0
+            ),
             addons,
             qty: chosenQty,
             note: $('instructions').value.trim(),
@@ -573,6 +661,13 @@ window.addEventListener('cloud-ready', () => {
 
                         <small>
                             ${esc(item.size)}
+
+                            ${item.milk
+                                ? ' · ' + esc(item.milk) +
+                                  (Number(item.milkExtra || 0) > 0
+                                      ? ' (+' + peso(item.milkExtra) + ')'
+                                      : '')
+                                : ''}
 
                             ${addonNames
                                 ? ' · ' + esc(addonNames)
@@ -739,7 +834,8 @@ window.addEventListener('cloud-ready', () => {
                 .map(item => {
                     return (
                         `${item.qty}× ${esc(item.name)} ` +
-                        `(${esc(item.size)})`
+                        `(${esc(item.size)}` +
+                        `${item.milk ? ', ' + esc(item.milk) : ''})`
                     );
                 })
                 .join('<br>');
@@ -1126,6 +1222,12 @@ window.addEventListener('cloud-ready', () => {
 
             </label>
         `).join('');
+
+        const oatMilkInput = $('oatMilkPrice');
+
+        if (oatMilkInput) {
+            oatMilkInput.value = Number(db.oatMilkPrice ?? 20);
+        }
     }
 
     // ============================================================
@@ -1141,9 +1243,12 @@ window.addEventListener('cloud-ready', () => {
             ...document.querySelectorAll('[data-addon]')
         ];
 
+        const oatMilkInput = $('oatMilkPrice');
+
         const allInputs = [
             ...priceInputs,
-            ...addonInputs
+            ...addonInputs,
+            ...(oatMilkInput ? [oatMilkInput] : [])
         ];
 
         const invalid = allInputs.some(input => {
@@ -1191,13 +1296,19 @@ window.addEventListener('cloud-ready', () => {
         button.disabled = true;
 
         try {
+            const updatedOatMilkPrice = oatMilkInput
+                ? Number(oatMilkInput.value)
+                : Number(db.oatMilkPrice ?? 20);
+
             await window.cloud.saveMenu(
                 updatedMenu,
-                updatedAddons
+                updatedAddons,
+                updatedOatMilkPrice
             );
 
             db.menu = updatedMenu;
             db.addons = updatedAddons;
+            db.oatMilkPrice = updatedOatMilkPrice;
 
             renderGrid();
             renderSettings();
@@ -1293,7 +1404,8 @@ window.addEventListener('cloud-ready', () => {
 
                     return (
                         `${item.qty}x ${item.name} ` +
-                        `${item.size} ${addons}`
+                        `${item.size}` +
+                        `${item.milk ? ' ' + item.milk : ''} ${addons}`
                     );
                 })
                 .join('; '),
@@ -1405,7 +1517,7 @@ window.addEventListener('cloud-ready', () => {
                 .map(item => {
                     return (
                         `${item.qty}x ${item.name} ` +
-                        `(${item.size})`
+                        `(${item.size}${item.milk ? ', ' + item.milk : ''})`
                     );
                 })
                 .join('; '),
@@ -1510,6 +1622,10 @@ window.addEventListener('cloud-ready', () => {
             db.addons = Array.isArray(menuData.addons)
                 ? structuredClone(menuData.addons)
                 : structuredClone(DEFAULT_ADDONS);
+
+            db.oatMilkPrice = Number.isFinite(Number(menuData.oatMilkPrice))
+                ? Number(menuData.oatMilkPrice)
+                : 20;
         }
 
         renderGrid();
