@@ -129,12 +129,19 @@ window.cloud = {
     });
   },
 
-  async saveMenu(menu, addons) {
+  async saveMenu(menu, addons, oatMilkPrice = 20) {
     requireOwner();
+
+    const surcharge = Number(oatMilkPrice);
+
+    if (!Number.isFinite(surcharge) || surcharge < 0) {
+      throw new Error('Oat milk surcharge must be a valid non-negative amount');
+    }
 
     await setDoc(doc(store, 'config', 'menu'), {
       menu,
-      addons
+      addons,
+      oatMilkPrice: surcharge
     });
   }
 };
