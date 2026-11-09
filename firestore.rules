@@ -14,7 +14,10 @@ service cloud.firestore {
   }
   match /orders/{id} {
    allow read: if active();
-   allow create: if manager() && request.resource.data.createdBy == request.auth.uid && request.resource.data.id == id && request.resource.data.status == 'Pending' && request.resource.data.total is number && request.resource.data.total >= 0;
+   allow create: if request.resource.data.createdBy == request.auth.uid && request.resource.data.id == id && request.resource.data.total is number && request.resource.data.total >= 0 && (
+      (manager() && request.resource.data.status == 'Pending' && !('recordType' in request.resource.data)) ||
+      (owner() && request.resource.data.status == 'Completed' && request.resource.data.recordType == 'Historical' && request.resource.data.items is list && request.resource.data.items.size() > 0)
+   );
    allow update: if manager() && resource.data.status != 'Voided' && (
       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events']) && request.resource.data.status in ['Pending','Preparing','Ready','Completed']) ||
       (owner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events','voidedBy','voidReason','voidNote','voidedAt','voidedUid']) && request.resource.data.status == 'Voided' && request.resource.data.voidedUid == request.auth.uid)
