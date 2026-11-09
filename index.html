@@ -211,6 +211,51 @@
                         </button>
                     </div>
 
+                    <!-- MONTHLY SALES CALENDAR -->
+                    <div class="calendar-card">
+                        <div class="calendar-heading">
+                            <div>
+                                <h3>Monthly sales calendar</h3>
+                                <p>Choose a date to view its sales below.</p>
+                            </div>
+                            <div class="calendar-nav">
+                                <button class="outline" id="calendarPrev" type="button" aria-label="Previous month">‹</button>
+                                <strong id="calendarMonth">—</strong>
+                                <button class="outline" id="calendarNext" type="button" aria-label="Next month">›</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid calendar-weekdays" aria-hidden="true">
+                            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                        </div>
+                        <div class="calendar-grid" id="salesCalendar" aria-label="Monthly sales calendar"></div>
+                        <p class="calendar-legend"><span class="legend-dot"></span> Day with recorded sales · Amounts exclude voided transactions</p>
+                    </div>
+
+                    <!-- HISTORICAL SALES ENTRY -->
+                    <div class="historical-card" id="historicalSalesPanel">
+                        <div class="calendar-heading">
+                            <div>
+                                <h3>Record a previous sale</h3>
+                                <p>Add sales that happened before the Order Desk was used. These will appear in the calendar and order history.</p>
+                            </div>
+                            <span class="badge">Owner only</span>
+                        </div>
+                        <form id="historicalSaleForm">
+                            <div class="historical-fields">
+                                <label class="label">Sale date<input type="date" id="historicalDate" required></label>
+                                <label class="label">Sale time <span>(optional)</span><input type="time" id="historicalTime"></label>
+                                <label class="label">Customer <span>(optional)</span><input type="text" id="historicalCustomer" maxlength="80" placeholder="Walk-in"></label>
+                                <label class="label">Payment method<select id="historicalPayment"><option>Cash</option><option>GCash</option><option>Other</option><option>Unknown / not recorded</option></select></label>
+                            </div>
+                            <div class="historical-items-heading"><strong>Items sold</strong><button class="outline" id="addHistoricalItem" type="button">+ Add item</button></div>
+                            <div id="historicalItems" class="historical-items"></div>
+                            <div class="historical-total"><span>Recorded total</span><strong id="historicalTotal">₱0.00</strong></div>
+                            <p class="tiny">Enter the actual unit price charged at the time. You can adjust it if the menu price was different.</p>
+                            <button class="cta" id="saveHistoricalSale" type="submit">Save previous sale <span>→</span></button>
+                            <p class="tiny" id="historicalMessage" role="status"></p>
+                        </form>
+                    </div>
+
                     <!-- REPORT CONTROLS -->
                     <div class="report-controls">
                         <label class="label">
