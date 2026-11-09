@@ -118,6 +118,7 @@ window.addEventListener('cloud-ready', () => {
 
     let voidId = null;
     let currentPage = 'pos';
+    let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     // ============================================================
     // HELPERS
@@ -909,7 +910,7 @@ window.addEventListener('cloud-ready', () => {
                         ${esc(order.customer || 'Walk-in')}
 
                         <small>
-                            ${esc(order.type || '')}
+                            ${order.recordType === 'Historical' ? 'Previous sale' : esc(order.type || '')}
 
                             ${order.table
                                 ? ' · ' + esc(order.table)
@@ -1073,10 +1074,202 @@ window.addEventListener('cloud-ready', () => {
     // SALES SUMMARY
     // ============================================================
 
+    function activeOrdersForDate(dateKey) {
+        return db.orders.filter(order =>
+            order.status !== 'Voided' && localDate(order.createdAt) === dateKey
+        );
+    }
+
+    function renderSalesCalendar() {
+        const grid = $('salesCalendar');
+        if (!grid) return;
+
+        const year = calendarMonth.getFullYear();
+        const month = calendarMonth.getMonth();
+        $('calendarMonth').textContent = calendarMonth.toLocaleDateString('en-PH', {
+            month: 'long', year: 'numeric'
+        });
+
+        const firstWeekday = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const selectedDate = $('reportDate').value || localDate(new Date());
+        const today = localDate(new Date());
+        const cells = [];
+
+        for (let blank = 0; blank < firstWeekday; blank++) {
+            cells.push('<div class="calendar-empty" aria-hidden="true"></div>');
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const orders = activeOrdersForDate(dateKey);
+            const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+            const classes = [
+                'calendar-day',
+                dateKey === selectedDate ? 'selected' : '',
+                dateKey === today ? 'today' : '',
+                revenue > 0 ? 'has-sales' : ''
+            ].filter(Boolean).join(' ');
+            cells.push(`
+                <button type="button" class="${classes}" data-calendar-date="${dateKey}" aria-pressed="${dateKey === selectedDate}">
+                    <span class="calendar-day-number">${day}</span>
+                    ${revenue > 0 ? `<strong>${peso(revenue)}</strong><small>${orders.length} ${orders.length === 1 ? 'order' : 'orders'}</small>` : '<small class="no-sales">—</small>'}
+                </button>
+            `);
+        }
+
+        grid.innerHTML = cells.join('');
+        grid.querySelectorAll('[data-calendar-date]').forEach(button => {
+            button.onclick = () => {
+                $('reportDate').value = button.dataset.calendarDate;
+                renderReports();
+            };
+        });
+    }
+
+    function historicalItemRow(product = null) {
+        const selected = product || db.menu[0];
+        if (!selected) return '';
+        const row = document.createElement('div');
+        row.className = 'historical-item-row';
+        row.innerHTML = `
+            <label class="label">Drink
+                <select class="historical-product">${db.menu.map(item => `<option value="${item.id}" ${item.id === selected.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select>
+            </label>
+            <label class="label">Size
+                <select class="historical-size"><option value="small">Small</option><option value="big">Big</option></select>
+            </label>
+            <label class="label">Qty
+                <input class="historical-qty" type="number" min="1" max="99" step="1" value="1" required>
+            </label>
+            <label class="label">Unit price (₱)
+                <input class="historical-price" type="number" min="0" step="0.01" value="${Number(selected.small)}" required>
+            </label>
+            <button class="historical-remove" type="button" aria-label="Remove item">×</button>
+        `;
+        row.querySelector('.historical-product').onchange = event => {
+            const productNow = db.menu.find(item => String(item.id) === event.target.value);
+            const size = row.querySelector('.historical-size').value;
+            row.querySelector('.historical-price').value = Number(productNow?.[size] || 0);
+            updateHistoricalTotal();
+        };
+        row.querySelector('.historical-size').onchange = event => {
+            const productNow = db.menu.find(item => String(item.id) === row.querySelector('.historical-product').value);
+            row.querySelector('.historical-price').value = Number(productNow?.[event.target.value] || 0);
+            updateHistoricalTotal();
+        };
+        row.querySelectorAll('input').forEach(input => input.addEventListener('input', updateHistoricalTotal));
+        row.querySelector('.historical-remove').onclick = () => {
+            row.remove();
+            updateHistoricalTotal();
+        };
+        $('historicalItems').append(row);
+        updateHistoricalTotal();
+    }
+
+    function updateHistoricalTotal() {
+        const total = [...document.querySelectorAll('.historical-item-row')].reduce((sum, row) => {
+            const qty = Math.max(0, Number(row.querySelector('.historical-qty').value || 0));
+            const price = Math.max(0, Number(row.querySelector('.historical-price').value || 0));
+            return sum + qty * price;
+        }, 0);
+        if ($('historicalTotal')) $('historicalTotal').textContent = peso(total);
+    }
+
+    function resetHistoricalForm() {
+        if (!$('historicalSaleForm')) return;
+        $('historicalSaleForm').reset();
+        $('historicalDate').value = localDate(new Date());
+        $('historicalDate').max = localDate(new Date());
+        $('historicalTime').value = '';
+        $('historicalItems').innerHTML = '';
+        historicalItemRow();
+        $('historicalMessage').textContent = '';
+    }
+
+    function setupHistoricalSales() {
+        if (!$('historicalSaleForm') || $('historicalSaleForm').dataset.ready) return;
+        $('historicalSaleForm').dataset.ready = 'true';
+        $('historicalDate').value = localDate(new Date());
+        $('historicalDate').max = localDate(new Date());
+        historicalItemRow();
+        $('addHistoricalItem').onclick = () => historicalItemRow();
+        $('historicalSaleForm').onsubmit = async event => {
+            event.preventDefault();
+            const date = $('historicalDate').value;
+            if (!date) return;
+            const rows = [...document.querySelectorAll('.historical-item-row')];
+            if (!rows.length) {
+                toast('Add at least one item.');
+                return;
+            }
+            const button = $('saveHistoricalSale');
+            button.disabled = true;
+            $('historicalMessage').textContent = 'Saving previous sale…';
+            try {
+                const items = rows.map(row => {
+                    const product = db.menu.find(item => String(item.id) === row.querySelector('.historical-product').value);
+                    const size = row.querySelector('.historical-size').value;
+                    const qty = Number(row.querySelector('.historical-qty').value);
+                    const unit = Number(row.querySelector('.historical-price').value);
+                    if (!product || !Number.isInteger(qty) || qty < 1 || qty > 99 || !Number.isFinite(unit) || unit < 0) {
+                        throw new Error('Please check the drink, quantity, and unit price.');
+                    }
+                    return { name: product.name, productId: product.id, size: size === 'big' ? 'Big' : 'Small', qty, unit, total: unit * qty, addons: [], milk: '', note: '' };
+                });
+                if (date > localDate(new Date())) throw new Error('Previous sale date cannot be in the future.');
+                const [year, month, day] = date.split('-').map(Number);
+                const [hour, minute] = ($('historicalTime').value || '12:00').split(':').map(Number);
+                const saleDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+                if (Number.isNaN(saleDate.getTime()) || localDate(saleDate) !== date) throw new Error('Please enter a valid sale date and time.');
+                const now = new Date().toISOString();
+                const total = items.reduce((sum, item) => sum + item.total, 0);
+                const order = {
+                    id: orderId(), createdAt: saleDate.toISOString(), recordedAt: now,
+                    recordType: 'Historical', customer: $('historicalCustomer').value.trim() || 'Walk-in',
+                    type: 'Historical sale', table: '', payment: $('historicalPayment').value,
+                    items, total, status: 'Completed', createdBy: '',
+                    events: [{ at: now, action: 'Previous sale manually recorded' }]
+                };
+                await window.cloud.saveHistoricalOrder(order);
+                $('historicalMessage').textContent = 'Previous sale saved successfully.';
+                toast('Previous sale recorded.');
+                $('reportDate').value = date;
+                calendarMonth = new Date(year, month - 1, 1);
+                resetHistoricalForm();
+                renderReports();
+            } catch (error) {
+                console.error('Historical sale save failed:', error);
+                $('historicalMessage').textContent = 'Could not save: ' + error.message;
+                toast('Previous sale not saved: ' + error.message);
+            } finally {
+                button.disabled = false;
+            }
+        };
+    }
+
+    $('calendarPrev').onclick = () => {
+        calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+        renderSalesCalendar();
+    };
+    $('calendarNext').onclick = () => {
+        calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+        renderSalesCalendar();
+    };
+
     function renderReports() {
         const selectedDate =
             $('reportDate').value ||
             localDate(new Date());
+
+        const [selectedYear, selectedMonth] = selectedDate.split('-').map(Number);
+        if (selectedYear && selectedMonth && (calendarMonth.getFullYear() !== selectedYear || calendarMonth.getMonth() !== selectedMonth - 1)) {
+            calendarMonth = new Date(selectedYear, selectedMonth - 1, 1);
+        }
+        renderSalesCalendar();
+        setupHistoricalSales();
+        const isOwner = document.body.dataset.role === 'owner';
+        $('historicalSalesPanel').hidden = !isOwner;
 
         const activeOrders = db.orders.filter(
             order => order.status !== 'Voided'
