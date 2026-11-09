@@ -86,6 +86,18 @@ window.cloud = {
     await setDoc(doc(store, 'orders', o.id), o);
   },
 
+  async saveHistoricalOrder(o) {
+    requireOwner();
+    if (mode !== 'manage') throw new Error('Switch to Manage mode to record a previous sale.');
+
+    if (o.recordType !== 'Historical' || o.status !== 'Completed' || !o.createdAt || !Array.isArray(o.items) || !o.items.length || !Number.isFinite(Number(o.total)) || Number(o.total) < 0) {
+      throw new Error('Invalid historical sale details.');
+    }
+
+    o.createdBy = currentUser.uid;
+    await setDoc(doc(store, 'orders', o.id), o);
+  },
+
   async updateStatus(o, status) {
     requireManage();
 
@@ -292,6 +304,7 @@ function reset() {
   $('loginGate').hidden = false;
 
   document.body.classList.remove('viewer-mode', 'staff-mode');
+  delete document.body.dataset.role;
 
   $('staffPanel').hidden = true;
 }
@@ -325,6 +338,7 @@ onAuthStateChanged(auth, async user => {
 
     $('sessionIdentity').textContent =
       `${data.email || user.email} · ${role}`;
+    document.body.dataset.role = role;
 
     $('loginGate').hidden = true;
     $('appShell').hidden = false;
