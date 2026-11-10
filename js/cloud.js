@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, limit, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, limit, onSnapshot, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
 const cfg = window.FIREBASE_CONFIG;
 const error = document.getElementById('loginError');
@@ -116,6 +116,16 @@ window.cloud = {
         }
       ]
     });
+  },
+
+  async deleteVoidedOrder(id) {
+    requireOwner();
+    const ref = doc(store, 'orders', id);
+    const snap = await getDoc(ref);
+    if (!snap.exists() || snap.data().status !== 'Voided') {
+      throw new Error('Only already-voided orders can be deleted.');
+    }
+    await deleteDoc(ref);
   },
 
   async voidOrder(o, staff, reason, note) {
