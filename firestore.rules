@@ -22,7 +22,7 @@ service cloud.firestore {
       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events']) && request.resource.data.status in ['Pending','Preparing','Ready','Completed']) ||
       (owner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','events','voidedBy','voidReason','voidNote','voidedAt','voidedUid']) && request.resource.data.status == 'Voided' && request.resource.data.voidedUid == request.auth.uid)
     );
-   allow delete: if false;
+   allow delete: if owner() && resource.data.status == 'Voided';
   }
   match /config/{id} {
    allow read: if active();
