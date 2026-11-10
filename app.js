@@ -296,6 +296,22 @@ window.addEventListener('cloud-ready', () => {
         };
     });
 
+    $('tip').addEventListener('input', renderCart);
+
+    function updatePaymentDisplay() {
+        const isGCash = $('payment').value === 'GCash';
+        $('gcashQrPanel').hidden = !isGCash;
+    }
+    $('payment').addEventListener('change', updatePaymentDisplay);
+    $('gcashQrImage').addEventListener('load', () => {
+        $('gcashQrImage').hidden = false;
+        $('gcashQrPlaceholder').hidden = true;
+    });
+    $('gcashQrImage').addEventListener('error', () => {
+        $('gcashQrImage').hidden = true;
+        $('gcashQrPlaceholder').hidden = false;
+    });
+
     // ============================================================
     // ORDER TYPE
     // ============================================================
@@ -311,10 +327,6 @@ window.addEventListener('cloud-ready', () => {
                 );
             });
 
-            if ($('tableBox')) {
-                $('tableBox').style.display =
-                    orderType === 'Dine in' ? 'block' : 'none';
-            }
         };
     });
 
@@ -628,12 +640,15 @@ window.addEventListener('cloud-ready', () => {
             0
         );
 
-        const total = cart.reduce(
+        const subtotal = cart.reduce(
             (sum, item) => sum + item.total,
             0
         );
+        const tip = Math.max(0, Number($('tip')?.value || 0));
+        const total = subtotal + tip;
 
         $('itemCount').textContent = count;
+        $('tipDisplay').textContent = peso(tip);
         $('total').textContent = peso(total);
 
         if (!cart.length) {
@@ -762,19 +777,20 @@ window.addEventListener('cloud-ready', () => {
 
             type: orderType,
 
-            table:
-                orderType === 'Dine in'
-                    ? $('table').value.trim()
-                    : '',
-
+            tip: Math.max(0, Number($('tip').value || 0)),
+            discoverySource: $('discoverySource').value,
             payment: $('payment').value,
 
             items: structuredClone(cart),
 
-            total: cart.reduce(
+            subtotal: cart.reduce(
                 (sum, item) => sum + item.total,
                 0
             ),
+            total: cart.reduce(
+                (sum, item) => sum + item.total,
+                0
+            ) + Math.max(0, Number($('tip').value || 0)),
 
             status: 'Pending',
 
@@ -794,7 +810,11 @@ window.addEventListener('cloud-ready', () => {
             renderCart();
 
             $('customer').value = '';
-            $('table').value = '';
+            $('tip').value = '0';
+            $('discoverySource').value = '';
+            $('payment').value = 'Cash';
+            updatePaymentDisplay();
+            renderCart();
 
             toast(`Order ${order.id} saved!`);
 
@@ -877,6 +897,7 @@ window.addEventListener('cloud-ready', () => {
                 ? `
                     <span class="badge">VOIDED</span>
                     ${audit}
+                    <button class="delete-voided" data-delete-voided="${esc(order.id)}" type="button" aria-label="Delete voided order">Delete</button>
                 `
                 : `
                     <select
@@ -912,11 +933,9 @@ window.addEventListener('cloud-ready', () => {
                         <small>
                             ${order.recordType === 'Historical' ? 'Previous sale' : esc(order.type || '')}
 
-                            ${order.table
-                                ? ' · ' + esc(order.table)
-                                : ''}
-
                             · ${esc(order.payment || '')}
+                            ${order.discoverySource ? ' · Found us: ' + esc(order.discoverySource) : ''}
+                            ${Number(order.tip || 0) > 0 ? ' · Tip: ' + peso(order.tip) : ''}
                         </small>
                     </td>
 
@@ -972,6 +991,36 @@ window.addEventListener('cloud-ready', () => {
             };
         });
 
+        // Swipe a voided order left to reveal its Delete action.
+        body.querySelectorAll('tr').forEach(row => {
+            let startX = 0;
+            row.addEventListener('touchstart', event => {
+                startX = event.changedTouches[0].clientX;
+            }, { passive: true });
+            row.addEventListener('touchend', event => {
+                const deltaX = event.changedTouches[0].clientX - startX;
+                if (deltaX < -45 && row.querySelector('[data-delete-voided]')) {
+                    row.classList.add('swipe-delete-open');
+                } else if (deltaX > 45) {
+                    row.classList.remove('swipe-delete-open');
+                }
+            }, { passive: true });
+        });
+
+        body.querySelectorAll('[data-delete-voided]').forEach(button => {
+            button.onclick = async () => {
+                if (!confirm('Permanently delete this already-voided order? It will be removed from order history and exports.')) return;
+                button.disabled = true;
+                try {
+                    await window.cloud.deleteVoidedOrder(button.dataset.deleteVoided);
+                    toast('Voided order deleted.');
+                } catch (error) {
+                    button.disabled = false;
+                    toast('Delete failed: ' + error.message);
+                }
+            };
+        });
+
         // View-only mode should not expose editing controls.
         const viewOnly = document.body.classList.contains(
             'viewer-mode'
@@ -982,7 +1031,7 @@ window.addEventListener('cloud-ready', () => {
                 select.disabled = true;
             });
 
-            body.querySelectorAll('[data-void]').forEach(button => {
+            body.querySelectorAll('[data-void], [data-delete-voided]').forEach(button => {
                 button.style.display = 'none';
             });
         }
@@ -1113,7 +1162,7 @@ window.addEventListener('cloud-ready', () => {
             cells.push(`
                 <button type="button" class="${classes}" data-calendar-date="${dateKey}" aria-pressed="${dateKey === selectedDate}">
                     <span class="calendar-day-number">${day}</span>
-                    ${revenue > 0 ? `<strong>${peso(revenue)}</strong><small>${orders.length} ${orders.length === 1 ? 'order' : 'orders'}</small>` : '<small class="no-sales">—</small>'}
+                    ${orders.length ? `<strong>${peso(revenue)}</strong><small>${orders.length} ${orders.length === 1 ? 'order' : 'orders'}</small>` : '<small class="no-sales">—</small>'}
                 </button>
             `);
         }
@@ -1295,6 +1344,9 @@ window.addEventListener('cloud-ready', () => {
 
         $('todayRevenue').textContent = peso(selectedRevenue);
         $('todayCount').textContent = selectedOrders.length;
+        $('todayTips').textContent = peso(selectedOrders.reduce(
+            (sum, order) => sum + Number(order.tip || 0), 0
+        ));
 
         $('allRevenue').textContent = peso(allRevenue);
         $('voidCount').textContent = voidCount;
@@ -1567,8 +1619,9 @@ window.addEventListener('cloud-ready', () => {
             'Date',
             'Customer',
             'Type',
-            'Table',
             'Payment',
+            'Discovery Source',
+            'Tip',
             'Items',
             'Total',
             'Status',
@@ -1586,8 +1639,9 @@ window.addEventListener('cloud-ready', () => {
 
             order.customer || '',
             order.type || '',
-            order.table || '',
             order.payment || '',
+            order.discoverySource || '',
+            Number(order.tip || 0),
 
             (order.items || [])
                 .map(item => {
