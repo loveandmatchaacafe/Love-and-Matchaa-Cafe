@@ -107,14 +107,22 @@
                             </button>
                         </div>
 
-                        <label id="tableBox" class="label">
-                            Table number
+                        <label class="label">
+                            Tip
+                            <span>(optional · extra payment)</span>
+                            <input id="tip" type="number" min="0" step="0.01" value="0" inputmode="decimal" placeholder="Enter tip amount">
+                        </label>
+
+                        <label class="label">
+                            Where did they discover us?
                             <span>(optional)</span>
-                            <input
-                                id="table"
-                                placeholder=""
-                                maxlength="30"
-                            >
+                            <select id="discoverySource">
+                                <option value="">Select a source</option>
+                                <option>TikTok</option>
+                                <option>Facebook</option>
+                                <option>Instagram</option>
+                                <option>Walk-in</option>
+                            </select>
                         </label>
 
                         <div class="cartlist" id="cart">
@@ -129,6 +137,10 @@
                                 <b id="itemCount">0</b>
                             </div>
 
+                            <div>
+                                <span>Tip</span>
+                                <b id="tipDisplay">₱0.00</b>
+                            </div>
                             <div class="total">
                                 <span>Total</span>
                                 <strong id="total">₱0.00</strong>
@@ -143,6 +155,12 @@
                                 <option>Other</option>
                             </select>
                         </label>
+
+                        <div id="gcashQrPanel" class="gcash-qr-panel" hidden>
+                            <strong>Pay through GCash</strong>
+                            <img id="gcashQrImage" src="assets/images/gcash-qr.png" alt="Love & Matchaa Café GCash QR code">
+                            <p id="gcashQrPlaceholder">GCash QR code will appear here once the owner adds the image.</p>
+                        </div>
 
                         <button class="cta" id="saveOrder">
                             Place order <span>→</span>
@@ -160,7 +178,7 @@
                         <div>
                             <h2>Order history</h2>
                             <p>
-                                Track orders, review details, and record voids.
+                                Track orders, review details, and manage cancelled orders.
                             </p>
                         </div>
 
@@ -278,6 +296,11 @@
                         <div>
                             <span>Selected day's orders</span>
                             <strong id="todayCount">0</strong>
+                        </div>
+
+                        <div>
+                            <span>Selected day's tips</span>
+                            <strong id="todayTips">₱0.00</strong>
                         </div>
 
                         <div>
@@ -550,8 +573,7 @@
             <h2 id="voidTitle">Void order</h2>
 
             <p class="void-help">
-                The order will remain in history with its original
-                total and a void record.
+The order will be marked as void and excluded from sales. You can later swipe a voided order to reveal Delete.
             </p>
 
             <label class="label">
